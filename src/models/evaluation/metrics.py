@@ -44,9 +44,9 @@ def chr_score(matrix, res=5000, radius=125000, pseudocount_coeff=30):
     pix = int(radius / res)
     return [point_score(loc, pix, mat, pseudocount) for loc in range(mat.shape[0])]
 
-def insulation_corr(pred, target):
-    pred_insu  = np.asarray(chr_score(pred), dtype=np.float64)
-    targ_insu  = np.asarray(chr_score(target), dtype=np.float64)
+def insulation_corr(pred, target, res=5000, radius=125000):
+    pred_insu  = np.asarray(chr_score(pred, res=res, radius=radius), dtype=np.float64)
+    targ_insu  = np.asarray(chr_score(target, res=res, radius=radius), dtype=np.float64)
     m = np.isfinite(pred_insu) & np.isfinite(targ_insu)
 
     if m.sum() < 2:   
@@ -56,23 +56,18 @@ def insulation_corr(pred, target):
     rs, _ = spearmanr(pred_insu[m], targ_insu[m])
     return float(rp), float(rs)
 
-def distance_stratified_correlation(pred, target, xs, ys):
+def distance_stratified_correlation(pred, target, xs, ys, max_offset=None, store_diag=True):
     pears, spears = [], []
-    for d in range(len(pred)):
+    n = len(pred)
+    dmax = n if max_offset is None else min(n, max_offset)
+    for d in range(dmax):
         x = np.diagonal(pred, offset=d)
         y = np.diagonal(target, offset=d)
-        
         if x.size < 2:
             continue
-        if d in xs:
-            xs[d].extend(list(x))
-        else:
-            xs[d] = list(x)
-        
-        if d in ys:
-            ys[d].extend(list(y))
-        else:
-            ys[d] = list(y)
+        if store_diag:
+            xs.setdefault(d, []).append(np.asarray(x, dtype=np.float32))
+            ys.setdefault(d, []).append(np.asarray(y, dtype=np.float32))
         rp, _ = pearsonr(x, y)
         rs, _ = spearmanr(x, y)
         pears.append(float(rp))

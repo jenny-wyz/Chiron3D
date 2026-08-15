@@ -32,24 +32,22 @@ def gaussian_noise(inputs, std=0.1):
     return inputs + noise
 
 
-def shift_aug(chrom_len, start, end, shift_bins=9):
-    """Shift the genomic region by a random number of bins during training."""
-    resolution = 5000
+def shift_aug(chrom_len, start, end, resolution, flank=0, shift_bins=9):
+    """Shift the TARGET region by a random number of resolution-sized bins.
 
-    region_length = end - start  
+    `flank` is the bp of Borzoi context needed on each side of [start, end);
+    the shift is clamped so the full input window stays inside the chromosome.
+    """
+    region_length = end - start
 
-    # Compute maximum shift in bins
-    max_shift_right = (chrom_len - end) // resolution  # Bins to end of chromosome
-    max_shift = min(shift_bins, max_shift_right)
+    max_shift_left = (start - flank) // resolution
+    max_shift_right = (chrom_len - flank - end) // resolution
 
-    if max_shift <= 0:
+    lo = -min(shift_bins, max_shift_left)
+    hi = min(shift_bins, max_shift_right)
+    if hi < lo:
         return start, end
 
-    shift = torch.randint(low=0, high=max_shift + 1, size=(1,)).item()
-
-    # Compute new start and end in base pairs
-    shift_bp = shift * resolution
-    new_start = start + shift_bp
-    new_end = new_start + region_length
-
-    return new_start, new_end
+    shift = torch.randint(low=int(lo), high=int(hi) + 1, size=(1,)).item()
+    new_start = start + shift * resolution
+    return new_start, new_start + region_length

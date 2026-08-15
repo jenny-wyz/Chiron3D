@@ -7,8 +7,9 @@ from pathlib import Path
 
 
 def diagonalize_small(x):
-    x_i = x.unsqueeze(2).repeat(1, 1, 105, 1)
-    x_j = x.unsqueeze(3).repeat(1, 1, 1, 105)
+    n = x.shape[-1]
+    x_i = x.unsqueeze(2).repeat(1, 1, n, 1)
+    x_j = x.unsqueeze(3).repeat(1, 1, 1, n)
     input_map = torch.cat([x_i, x_j], dim=1)
     return input_map
 
@@ -30,8 +31,38 @@ def get_borzoi_backbone(local: bool, model_type: str):
 
 class Chiron3D(nn.Module):
 
-    def __init__(self, mid_hidden=128, local=True, model_type="borzoi"):
+    # Borzoi geometry -- fixed by the backbone, do not change.
+    BORZOI_INPUT = 524288   # required input width; TargetLengthCrop raises below 523264
+    EMB_BIN      = 32       # bp per embedding bin (conv-tower stride 2 * 2^4)
+    EMB_BINS     = 16352    # 16384 - 32, from TargetLengthCrop(16384 - 32)
+    EMB_HEAD_OFF = 512      # 16 bins trimmed off the front by that crop
+
+    def __init__(self, mid_hidden=128, local=True, model_type="borzoi",
+                 resolution=400, n_bins=256):
         super().__init__()
+
+        self.resolution = int(resolution)
+        self.n_bins = int(n_bins)
+        self.target_span = self.n_bins * self.resolution
+
+        assert self.target_span <= self.EMB_BINS * self.EMB_BIN, (
+            f"target span {self.target_span} bp exceeds embedding span "
+            f"{self.EMB_BINS * self.EMB_BIN} bp")
+        assert self.target_span % 64 == 0, (
+            f"n_bins*resolution = {self.target_span} must be a multiple of 64 so the "
+            f"centre crop lands on an embedding-bin edge")
+
+        self.flank = (self.BORZOI_INPUT - self.target_span) // 2
+        assert (self.flank - self.EMB_HEAD_OFF) % self.EMB_BIN == 0
+        self.emb_lo = (self.flank - self.EMB_HEAD_OFF) // self.EMB_BIN
+        self.emb_hi = self.emb_lo + self.target_span // self.EMB_BIN
+
+        # exact reshape-mean when resolution is a whole number of 32 bp bins
+        self.exact_pool = (self.resolution % self.EMB_BIN == 0)
+        self.pool_factor = self.resolution // self.EMB_BIN if self.exact_pool else None
+        print(f"[Chiron3D] resolution={self.resolution} n_bins={self.n_bins} "
+              f"span={self.target_span} flank={self.flank} "
+              f"emb[{self.emb_lo}:{self.emb_hi}] exact_pool={self.exact_pool}")
 
         self.borzoi = get_borzoi_backbone(local, model_type)
 
@@ -42,15 +73,20 @@ class Chiron3D(nn.Module):
         self.activation = nn.ReLU()
         self.projector = nn.Conv1d(1536, mid_hidden, kernel_size=1, stride=1, padding=0, bias=True)
 
-        self.length_reducer = nn.AdaptiveAvgPool1d(105)
+        self.length_reducer = nn.AdaptiveAvgPool1d(self.n_bins)
 
         self.attn = blocks.AttnModuleSmall(hidden=mid_hidden, record_attn=False)
         self.decoder = blocks.Decoder(mid_hidden * 2, hidden=128)
 
     def forward(self, x):
-        x = self.borzoi.get_embs_after_crop(x)
+        x = self.borzoi.get_embs_after_crop(x)          # (B, 1536, 16352) @ 32 bp
+        x = x[..., self.emb_lo:self.emb_hi]             # centre crop -> (B, 1536, span/32)
         x = self.projector(x)
-        x = self.length_reducer(x)
+        if self.exact_pool:
+            b, c, l = x.shape
+            x = x.view(b, c, self.n_bins, self.pool_factor).mean(-1)
+        else:
+            x = self.length_reducer(x)
         x = move_feature_forward(x)
         x = self.attn(x)
         x = move_feature_forward(x)

@@ -62,7 +62,8 @@ def set_lora(model):
 
 def get_model(args):
     if args.borzoi:
-        model = Chiron3D(mid_hidden=128, local=args.local)
+        model = Chiron3D(mid_hidden=128, local=args.local,
+                         resolution=args.resolution, n_bins=args.n_bins)
         replace_bn_with_groupnorm(model)
         model = set_lora(model)
     else:

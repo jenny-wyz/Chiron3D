@@ -10,3 +10,11 @@ __pycache__/
 scripts/model-evaluation-*.sh
 scripts/model-training-*.sh
 checkpoints/
+
+checkpoints_*/
+data_*/
+plot*
+run_*.sh
+data.zip
+sblogs/
+scripts/make_windows_dm6.py

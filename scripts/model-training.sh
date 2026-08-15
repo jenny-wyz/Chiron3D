@@ -10,15 +10,17 @@
 
 # Activate conda
 source ~/.bashrc
-conda activate ENV_NAME_HERE
+conda activate chiron
+
+echo "JOB STARTED at: $(date)"
 
 # Check env
 echo
 echo "which python"
 which python
 
-cd /ABSOLUTE/PATH/TO/PROJECT/ROOT/Chiron3D
-pip install -e .
+cd /cluster/work/boeva/wangyiz/Chiron3D
+#pip install -e .
 
 SEED=2077
 FLAG=$(echo "$1" | sed 's/^--//')
@@ -64,3 +66,5 @@ python3 -m src.models.training.train \
   $DDP_DISABLED \
   --num-workers $NUM_WORKERS \
   --borzoi
+
+echo "JOB ENDED at: $(date)"

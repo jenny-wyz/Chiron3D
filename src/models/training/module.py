@@ -40,7 +40,7 @@ class TrainModule(pl.LightningModule):
                 out_c = out.detach().to(torch.float32).cpu()
                 true_c = true.detach().to(torch.float32).cpu()
 
-                r_pearson, r_spearman = insulation_corr(out_c, true_c)
+                r_pearson, r_spearman = insulation_corr(out_c, true_c, res=self.args.resolution)
 
                 if store == "val":
                     if not np.isnan(r_pearson):
@@ -144,9 +144,13 @@ class TrainModule(pl.LightningModule):
             fasta_dir=args.fasta_dir,
             genomic_feature_path=args.genom_feat_path,
             mode=mode,
-            val_chroms=["chr5", "chr12", "chr13", "chr21"],
-            test_chroms=["chr2", "chr6", "chr19"],
+            # val_chroms=["chr5", "chr12", "chr13", "chr21"],
+            # test_chroms=["chr2", "chr6", "chr19"],
+            val_chroms=["chr2R"],
+            test_chroms=["chrX"],
             use_pretrained_backbone=use_pretrained_backbone,
+            resolution=args.resolution,
+            n_bins=args.n_bins,
         )
 
         return dataset

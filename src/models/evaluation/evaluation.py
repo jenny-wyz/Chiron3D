@@ -46,13 +46,17 @@ def init_parser():
     p.add_argument('--num-genom-feat', dest='num_genom_feat', type=int, default=0)
     p.add_argument('--ckpt-path', required=True)
     p.add_argument('--borzoi', action='store_true')
+    p.add_argument('--resolution', dest='resolution', type=int, default=400)
+    p.add_argument('--n-bins', dest='n_bins', type=int, default=512)
+    p.add_argument('--test-chroms', dest='test_chroms', nargs='+', default=["chrX"])
+    p.add_argument('--max-offset', type=int, default=None)
     return p.parse_args()
 
 
 def main():
     args = init_parser()
     if args.num_genom_feat == 0:
-        args.genomic_feature_path = None
+        args.genomic_feature_path = None    # <-- ok
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(args.borzoi)
@@ -69,7 +73,8 @@ def main():
     overall_pearson = []
     overall_spearman = []
     print('Regions file:', args.regions_file)
-    for chrom in ["chr2", "chr6", "chr19"]:
+    #  for chrom in ["chr2", "chr6", "chr19"]:
+    for chrom in args.test_chroms:
         ds = GenomicDataset(
             regions_file_path=args.regions_file,
             cool_file_path=args.cool_file,
@@ -77,7 +82,9 @@ def main():
             genomic_feature_path=args.genomic_feature_path,
             mode="test",
             test_chroms=[chrom],
-            use_pretrained_backbone=use_pretrained_backbone
+            use_pretrained_backbone=use_pretrained_backbone,
+            resolution=args.resolution,
+            n_bins=args.n_bins,
         )
 
         dl = DataLoader(ds, batch_size=1, shuffle=False, num_workers=4, pin_memory=True)
@@ -110,7 +117,7 @@ def main():
                 out = out.squeeze()
                 true = true.squeeze()
 
-                r_p, r_s = insulation_corr(out, true)
+                r_p, r_s = insulation_corr(out, true, res=args.resolution)
                 l_mse = mse(out, true)
                 dist_p, dist_s, xs, ys = distance_stratified_correlation(out, true, xs, ys)
 
@@ -123,6 +130,18 @@ def main():
 
         dist_p_mat = np.asarray(dist_strat_pearson_list, dtype=float)
         dist_s_mat = np.asarray(dist_strat_spearman_list, dtype=float)
+        xs_flat = {str(d): np.concatenate(v) for d, v in xs.items()}
+        ys_flat = {str(d): np.concatenate(v) for d, v in ys.items()}
+        np.savez_compressed(
+            f"metrics_{chrom}.npz",
+            insu_pearson=np.asarray(insu_pearson_list, float),
+            insu_spearman=np.asarray(insu_spearman_list, float),
+            mse=np.asarray(mse_list, float),
+            dist_strat_pearson=dist_p_mat,
+            dist_strat_spearman=dist_s_mat,
+            **{f"diag_x_{k}": v for k, v in xs_flat.items()},
+            **{f"diag_y_{k}": v for k, v in ys_flat.items()},
+        )
 
         np.savez_compressed(
             os.path.join(f"metrics_{chrom}.npz"),
