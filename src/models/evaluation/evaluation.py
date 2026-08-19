@@ -119,7 +119,8 @@ def main():
 
                 r_p, r_s = insulation_corr(out, true, res=args.resolution)
                 l_mse = mse(out, true)
-                dist_p, dist_s, xs, ys = distance_stratified_correlation(out, true, xs, ys)
+                dist_p, dist_s, xs, ys = distance_stratified_correlation(
+                    out, true, xs, ys, max_offset=args.max_offset)
 
                 insu_pearson_list.append(r_p)
                 insu_spearman_list.append(r_s)
@@ -143,16 +144,6 @@ def main():
             **{f"diag_y_{k}": v for k, v in ys_flat.items()},
         )
 
-        np.savez_compressed(
-            os.path.join(f"metrics_{chrom}.npz"),
-            insu_pearson=np.asarray(insu_pearson_list, float),
-            insu_spearman=np.asarray(insu_spearman_list, float),
-            mse=np.asarray(mse_list, float),
-            dist_strat_pearson=dist_p_mat,
-            dist_strat_spearman=dist_s_mat,
-            diag_x=xs,
-            diag_y=ys,
-        )
         overall_mse.extend(mse_list)
         overall_pearson.extend(insu_pearson_list)
         overall_spearman.extend(insu_spearman_list)

@@ -45,9 +45,9 @@ def init_parser():
     parser.add_argument('--borzoi', action='store_true', help='Use borzoi backbone for embeddings')
 
     # Output-matrix geometry
-    parser.add_argument('--resolution', dest='resolution', type=int, default=800,
+    parser.add_argument('--resolution', dest='resolution', type=int, default=400,
                         help='Contact-map bin size in bp; must equal the --cool-file binsize')
-    parser.add_argument('--n-bins', dest='n_bins', type=int, default=256,
+    parser.add_argument('--n-bins', dest='n_bins', type=int, default=512,
                         help='Side length N of the predicted map; predicted span C = N * resolution')
 
 
