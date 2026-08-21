@@ -35,7 +35,7 @@ def make_windows(out_bed, resolution, n_bins, stride=None, chromsizes=DM6):
     assert C % 64 == 0, f"C = {C} must be a multiple of 64"
     assert (F - EMB_HEAD_OFF) % EMB_BIN == 0, f"flank {F} is not on an embedding-bin edge"
     assert stride % resolution == 0, f"stride {stride} must be a multiple of {resolution}"
- 
+
     emb_lo = (F - EMB_HEAD_OFF) // EMB_BIN
     emb_hi = emb_lo + C // EMB_BIN
     pool = (C // EMB_BIN) / n_bins

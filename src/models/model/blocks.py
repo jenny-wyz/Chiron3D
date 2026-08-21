@@ -271,7 +271,7 @@ class TransformerEncoder(torch.nn.TransformerEncoder):
 
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, hidden, dropout=0.1, max_len=1024):
+    def __init__(self, hidden, dropout=0.1, max_len=2048):   # 1024 -> 2048 for N=1308
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
         position = torch.arange(max_len).unsqueeze(1)

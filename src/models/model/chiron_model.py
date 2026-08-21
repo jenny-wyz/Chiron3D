@@ -76,7 +76,7 @@ class Chiron3D(nn.Module):
         self.length_reducer = nn.AdaptiveAvgPool1d(self.n_bins)
 
         self.attn = blocks.AttnModuleSmall(hidden=mid_hidden, record_attn=False)
-        self.decoder = blocks.Decoder(mid_hidden * 2, hidden=128, num_blocks=7)     # 5 -> 7
+        self.decoder = blocks.Decoder(mid_hidden * 2, hidden=128, num_blocks=8)     # def 5 -> 7 -> 8
 
     def forward(self, x):
         x = self.borzoi.get_embs_after_crop(x)          # (B, 1536, 16352) @ 32 bp

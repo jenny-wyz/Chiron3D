@@ -66,6 +66,15 @@ def main():
     else:
         model = TrainModule.load_from_checkpoint(args.ckpt_path, map_location=device).to(device)
     model.eval()
+
+    # dont wanna mix up n-bins checkpoint
+    if args.borzoi:
+        ck = model.hparams["args"]
+        ck_r, ck_n = getattr(ck, "resolution", 5000), getattr(ck, "n_bins", 105)
+        print(f"[eval] checkpoint geometry: resolution={ck_r} n_bins={ck_n}")
+        assert (args.resolution, args.n_bins) == (ck_r, ck_n), \
+            f"CLI (r={args.resolution}, N={args.n_bins}) != checkpoint (r={ck_r}, N={ck_n})"
+
     use_pretrained_backbone = bool(args.borzoi)
     corigami_model = not bool(args.borzoi) # clip C.Origami preds for comparison
 
