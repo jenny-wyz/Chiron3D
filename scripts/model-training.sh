@@ -2,69 +2,36 @@
 
 #SBATCH -p gpu
 #SBATCH --gres=gpu:rtx4090:4
-#SBATCH --job-name=BORZOI
-#SBATCH --output=training.output.txt
+#SBATCH --job-name=train800654
+#SBATCH --output=train_r800_n654_nb8_2L.output.txt
 #SBATCH --cpus-per-task=16
-#SBATCH --time=2-00:00:00
-#SBATCH --mem=64G
+#SBATCH --time=1-00:00:00
+#SBATCH --mem=128G
 
-# Activate conda
+echo "JOB STARTED at: $(date)"
+echo "Running on node: $(hostname)"
+echo "JOB ID: $SLURM_JOB_ID"
+
+cd /cluster/work/boeva/wangyiz/Chiron3D
+
 source ~/.bashrc
 conda activate chiron
 
-echo "JOB STARTED at: $(date)"
 
-# Check env
-echo
-echo "which python"
-which python
+# rez 800, nbins 654 ---------------------------------------------
 
-cd /cluster/work/boeva/wangyiz/Chiron3D
-#pip install -e .
-
-SEED=2077
-FLAG=$(echo "$1" | sed 's/^--//')
-echo "Using flag: $FLAG"
-
-# Save path
-SAVE_PATH="checkpoints"
-
-REGIONS_FILE="data/windows_hg19.bed"
-COOL_FILE="data/A673_WT_CTCF_5000.cool"
-GENOME_FEAT_PATH="data/ctcf"
-FASTA_DIR_HG19="data/chromosomes"
-
-# Model parameters
-NUM_GENOM_FEAT=0
-
-# Training Parameters
-PATIENCE=7
-MAX_EPOCHS=25
-SAVE_TOP_N=25
-NUM_GPU=4
-
-# Dataloader Parameters
-BATCH_SIZE=4
-DDP_DISABLED="--ddp-disabled"
-NUM_WORKERS=16
-
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-# Run the Python script with the arguments
 python3 -m src.models.training.train \
-  --seed $SEED \
-  --save_path $SAVE_PATH \
-  --regions-file $REGIONS_FILE \
-  --fasta-dir $FASTA_DIR_HG19 \
-  --cool-file $COOL_FILE \
-  --genom-feat-path $GENOME_FEAT_PATH \
-  --num-genom-feat $NUM_GENOM_FEAT \
-  --patience $PATIENCE \
-  --max-epochs $MAX_EPOCHS \
-  --save-top-n $SAVE_TOP_N \
-  --num-gpu $NUM_GPU \
-  --batch-size $BATCH_SIZE \
-  $DDP_DISABLED \
-  --num-workers $NUM_WORKERS \
+  --seed 2077 \
+  --save_path checkpoints_r800_N654_nb8_2L \
+  --regions-file data/windows_dm6_C523200.bed \
+  --fasta-dir data/dmel_chromosomes \
+  --cool-file data/lbm.800.cool \
+  --resolution 800 \
+  --n-bins 654 \
+  --num-genom-feat 0 \
+  --patience 7 --max-epochs 25 --save-top-n 1 \
+  --num-gpu 4 --batch-size 4 --ddp-disabled --num-workers 16 \
   --borzoi
+
 
 echo "JOB ENDED at: $(date)"
