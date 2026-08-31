@@ -146,7 +146,7 @@ class TrainModule(pl.LightningModule):
             mode=mode,
             # val_chroms=["chr5", "chr12", "chr13", "chr21"],
             # test_chroms=["chr2", "chr6", "chr19"],
-            val_chroms=["chr2R"],
+            val_chroms=["chr2L"],
             test_chroms=["chrX"],
             use_pretrained_backbone=use_pretrained_backbone,
             resolution=args.resolution,

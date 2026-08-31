@@ -185,9 +185,11 @@ class ResBlockDilated(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, in_channel, hidden=256, filter_size=3, num_blocks=5):
+    def __init__(self, in_channel, hidden=256, filter_size=3, num_blocks=5, grad_ckpt=False):
         super(Decoder, self).__init__()
         self.filter_size = filter_size
+        self.grad_ckpt = grad_ckpt
+        print(f"[Decoder] num_blocks={num_blocks} grad_ckpt={grad_ckpt}")
 
         self.conv_start = nn.Sequential(
             nn.Conv2d(in_channel, hidden, 3, 1, 1),
@@ -199,7 +201,12 @@ class Decoder(nn.Module):
 
     def forward(self, x):
         x = self.conv_start(x)
-        x = self.res_blocks(x)
+        if self.grad_ckpt and self.training and x.requires_grad:
+            from torch.utils.checkpoint import checkpoint
+            for blk in self.res_blocks:
+                x = checkpoint(blk, x, use_reentrant=False)
+        else:
+            x = self.res_blocks(x)
         out = self.conv_end(x)
         return out
 
@@ -279,7 +286,7 @@ class PositionalEncoding(nn.Module):
         pe = torch.zeros(max_len, 1, hidden)
         pe[:, 0, 0::2] = torch.sin(position * div_term)
         pe[:, 0, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe)
+        self.register_buffer('pe', pe, persistent=False)
 
     def forward(self, x):
         """
