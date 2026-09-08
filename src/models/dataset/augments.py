@@ -1,10 +1,10 @@
 import torch
 
 
-def reverse_complement(sequence, features, matrix, chance=0.5):
-    """Reverse complements sequence, features, and matrix half of the time"""
+def reverse_complement(sequence, features, matrix, mask=None, chance=0.5):
+    """Reverse complements sequence, features, matrix and mask half of the time"""
     if torch.rand(1).item() >= chance:
-        return sequence, features, matrix
+        return sequence, features, matrix, mask
 
     # Reverse sequence (5xN or 6xN with motif mask)
     sequence_r = torch.flip(sequence, dims=[0])
@@ -15,6 +15,7 @@ def reverse_complement(sequence, features, matrix, chance=0.5):
 
     # Reverse hic
     matrix_r = torch.flip(matrix, dims=[0, 1])
+    mask_r = torch.flip(mask, dims=[0, 1]) if mask is not None else None
 
     seq_rc = torch.zeros_like(sequence_r)
 
@@ -23,7 +24,7 @@ def reverse_complement(sequence, features, matrix, chance=0.5):
     seq_rc[:, 1] = sequence_r[:, 2]  # C -> G
     seq_rc[:, 2] = sequence_r[:, 1]  # G -> C
 
-    return seq_rc, features_r, matrix_r
+    return seq_rc, features_r, matrix_r, mask_r
 
 
 def gaussian_noise(inputs, std=0.1):

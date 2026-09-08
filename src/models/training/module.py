@@ -27,7 +27,19 @@ class TrainModule(pl.LightningModule):
         if "features" in batch:
             inputs = torch.cat((inputs, batch["features"]), dim=1)  # TODO: Check this works with COrigami model too.
 
-        return inputs, batch["matrix"]
+        mask = batch.get("mask", None)
+        return inputs, batch["matrix"], mask
+
+    @staticmethod
+    def masked_mse(outputs, mat, mask):
+        if mask is None:
+            return torch.nn.functional.mse_loss(outputs, mat)
+        mask = mask.to(outputs.device)
+        diff = (outputs - mat) ** 2
+        n = mask.sum()
+        if n == 0:
+            return diff.sum() * 0.0   # keeps the graph alive, contributes nothing
+        return (diff * mask).sum() / n
 
     def on_validation_epoch_start(self):
         self._val_pearsons = []
@@ -49,12 +61,11 @@ class TrainModule(pl.LightningModule):
                         self._val_spearmans.append(float(r_spearman))
 
     def training_step(self, batch, batch_idx):
-        inputs, mat = self.proc_batch(batch)
+        inputs, mat, mask = self.proc_batch(batch)
         inputs.requires_grad_()
         outputs = self(inputs)
 
-        criterion = torch.nn.MSELoss()
-        loss = criterion(outputs, mat)
+        loss = self.masked_mse(outputs, mat, mask)
 
         metrics = {'train_step_loss': loss}
         self.log_dict(metrics, batch_size=inputs.shape[0], prog_bar=True)
@@ -65,7 +76,7 @@ class TrainModule(pl.LightningModule):
 
         if getattr(self.trainer, "sanity_checking", False):
             return ret_metrics
-        inputs, mat = self.proc_batch(batch)
+        inputs, mat, _ = self.proc_batch(batch)
         with torch.no_grad():
             outputs = self(inputs)
         self._accumulate_corr(outputs, mat, store="val")
@@ -76,10 +87,9 @@ class TrainModule(pl.LightningModule):
         return ret_metrics
 
     def _shared_eval_step(self, batch, batch_idx):
-        inputs, mat = self.proc_batch(batch)
+        inputs, mat, mask = self.proc_batch(batch)
         outputs = self(inputs)
-        criterion = torch.nn.MSELoss()
-        loss = criterion(outputs, mat)
+        loss = self.masked_mse(outputs, mat, mask)
         return loss
 
     def training_epoch_end(self, step_outputs):
@@ -149,8 +159,8 @@ class TrainModule(pl.LightningModule):
             val_chroms=["chr2L"],
             test_chroms=["chrX"],
             use_pretrained_backbone=use_pretrained_backbone,
-            resolution=args.resolution,
-            n_bins=args.n_bins,
+            balance=args.balance,
+            matrix_scale=args.matrix_scale,
         )
 
         return dataset

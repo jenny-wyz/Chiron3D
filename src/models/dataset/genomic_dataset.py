@@ -13,8 +13,8 @@ class GenomicDataset(Dataset):
     BORZOI_INPUT = 524288
 
     def __init__(self, regions_file_path, cool_file_path, fasta_dir, genomic_feature_path=None,
-                 mode="train", val_chroms=None, test_chroms=None, use_pretrained_backbone=False,
-                 use_aug=False, resolution=400, n_bins=256):
+                 mode="train", val_chroms=None, test_chroms=None, use_pretrained_backbone=False, 
+                 use_aug=False, balance=False, matrix_scale=1.0, resolution=800, n_bins=654):
         """
         Args:
             regions_file_path (str): Path to the .bed file with the genomic regions.
@@ -39,6 +39,9 @@ class GenomicDataset(Dataset):
         self.cool = self._initialize_cooler()
         self._chrom_set = set(self.cool.chromnames)
         self.filtered_regions = self._filter_regions_by_mode()
+
+        self.balance = balance
+        self.matrix_scale = matrix_scale
 
         self.resolution = int(resolution)
         self.n_bins = int(n_bins)
@@ -112,22 +115,21 @@ class GenomicDataset(Dataset):
             f"expected {self.BORZOI_INPUT} -- regenerate the bed with a larger edge margin")
         sequence = onehotencode_dna(seq, self.dna_channels)
 
-        matrix = get_matrix(self.cool, chrom, target_start, target_end)
-        assert matrix.shape == (self.n_bins, self.n_bins), (
-            f"matrix {tuple(matrix.shape)} != ({self.n_bins}, {self.n_bins}) at "
-            f"{chrom}:{target_start}-{target_end}")
-
+        matrix, mask = get_matrix(self.cool, chrom, output['region_start'], output['region_end'],
+                                  balance=self.balance, scale=self.matrix_scale)
         features = []
         for file_path in self.bw_files:
-            features.append(get_feature(file_path, output['chr'], win_start, win_end))
+            features.append(get_feature(file_path, output['chr'], output['region_start'], output['region_end']))
         features_tensor = torch.cat(features, dim=0) if features else None
 
         if self.use_aug:
-            sequence, features_tensor, matrix = reverse_complement(sequence, features_tensor, matrix, chance=0.5)
+            sequence, features_tensor, matrix, mask = reverse_complement(
+                sequence, features_tensor, matrix, mask, chance=0.5)
 
         if features_tensor is not None:
             output["features"] = features_tensor
         output["matrix"] = matrix
+        output["mask"] = mask
         output["sequence"] = sequence
         output["win_start"] = win_start
         output["win_end"] = win_end

@@ -7,10 +7,15 @@ def _to_np(x):
         return x.detach().cpu().numpy()
     return np.asarray(x)
 
-def mse(pred, target):
+def mse(pred, target, mask=None):
     pred = _to_np(pred)
     target = _to_np(target)
-    return float(np.mean((pred - target) ** 2))
+    if mask is None:
+        return float(np.mean((pred - target) ** 2))
+    mask = _to_np(mask).astype(bool)
+    if mask.sum() == 0:
+        return float("nan")
+    return float(np.mean((pred[mask] - target[mask]) ** 2))
 
 def point_score(locus, radius, matrix, pseudocount):
     n = matrix.shape[0]

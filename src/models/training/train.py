@@ -27,6 +27,12 @@ def init_parser():
     parser.add_argument('--num-genom-feat', dest='num_genom_feat', type=int, default=0,
                         help='Number of genomic features to consider (default: 0)')
 
+    # Contact matrix normalization
+    parser.add_argument('--balance', action='store_true',
+                        help='Use ICE-balanced contact values instead of raw counts')
+    parser.add_argument('--matrix-scale', dest='matrix_scale', type=float, default=1.0,
+                        help='Multiplier applied before log1p; set from scripts/calibrate_balance.py when --balance')
+
     # Training Parameters
     parser.add_argument('--patience', dest='trainer_patience', default=30, type=int,
                         help='Epoches before early stopping')
@@ -56,6 +62,12 @@ def init_parser():
 
 
 def init_training(args):
+    if getattr(args, "balance", False) and args.matrix_scale == 1.0:
+        raise ValueError(
+            "--balance requires --matrix-scale. Run scripts/calibrate_balance.py first; "
+            "with scale=1.0 balanced values are ~1e-5 and log1p degenerates to the identity."
+        )
+
     # Early_stopping
     early_stop_callback = callbacks.EarlyStopping(monitor='val_loss',
                                                   min_delta=0.00,

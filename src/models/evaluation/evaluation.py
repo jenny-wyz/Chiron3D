@@ -46,6 +46,8 @@ def init_parser():
     p.add_argument('--num-genom-feat', dest='num_genom_feat', type=int, default=0)
     p.add_argument('--ckpt-path', required=True)
     p.add_argument('--borzoi', action='store_true')
+    p.add_argument('--balance', action='store_true')
+    p.add_argument('--matrix-scale', dest='matrix_scale', type=float, default=1.0)
     p.add_argument('--resolution', dest='resolution', type=int, default=400)
     p.add_argument('--n-bins', dest='n_bins', type=int, default=512)
     p.add_argument('--test-chroms', dest='test_chroms', nargs='+', default=["chrX"])
@@ -91,6 +93,8 @@ def main():
             mode="test",
             test_chroms=[chrom],
             use_pretrained_backbone=use_pretrained_backbone,
+            balance=args.balance,
+            matrix_scale=args.matrix_scale,
             resolution=args.resolution,
             n_bins=args.n_bins,
         )
@@ -115,18 +119,37 @@ def main():
                 output = model(test_input)
                 output = torch.clamp(output, min=0)
 
-            for out, true in zip(output, batch["matrix"]):
-                out = out.cpu()  # Move output to CPU
-                true = true.cpu()  # Move true matrix to CPU
+            masks = batch.get("mask", [None] * len(output))
+            for out, true, msk in zip(output, batch["matrix"], masks):
+                out = out.cpu()   # Move output to CPU
+                true = true.cpu() # Move true matrix to CPU
+                msk = msk.cpu() if msk is not None else None
                 if corigami_model:
                     true = true[52:157, 52:157]
                     out = out[52:157, 52:157]
+                    if msk is not None:
+                        msk = msk[52:157, 52:157]
 
                 out = out.squeeze()
                 true = true.squeeze()
+                if msk is not None:
+                    msk = msk.squeeze()
 
-                r_p, r_s = insulation_corr(out, true, res=args.resolution)
-                l_mse = mse(out, true)
+                l_mse = mse(out, true, msk)
+
+                # Insulation and distance-stratified stats assume dense input.
+                # Drop fully-masked rows/cols rather than letting zero-fill
+                # masquerade as depleted contact.
+                if msk is not None:
+                    keep = msk.any(dim=1)
+                    if keep.sum() < 10:
+                        continue
+                    out_d = out[keep][:, keep]
+                    true_d = true[keep][:, keep]
+                else:
+                    out_d, true_d = out, true
+
+                r_p, r_s = insulation_corr(out_d, true_d)
                 dist_p, dist_s, xs, ys = distance_stratified_correlation(
                     out, true, xs, ys, max_offset=args.max_offset)
 

@@ -4,7 +4,8 @@ from src.models.dataset.genomic_dataset import GenomicDataset
 
 class LoopDataset(GenomicDataset):
     def __init__(self, regions_file_path, cool_file_path, fasta_dir, genomic_feature_path=None,
-                 mode="train", val_chroms=None, test_chroms=None, motif="", use_pretrained_backbone=False, use_aug=False, corigami_loops=False):
+                 mode="train", val_chroms=None, test_chroms=None, motif="", use_pretrained_backbone=False,
+                 use_aug=False, corigami_loops=False, balance=False, matrix_scale=1.0):
         """
         Args:
             regions_file_path (str): Path to the tsv file with the genomic regions that contain the loop regions.
@@ -17,7 +18,8 @@ class LoopDataset(GenomicDataset):
             encode_motif (str): Which motif to 1hot encode as input. Defaults to empty string.
         """
         super().__init__(regions_file_path, cool_file_path, fasta_dir, genomic_feature_path, mode,
-                         val_chroms, test_chroms)
+                         val_chroms, test_chroms, use_pretrained_backbone, use_aug,
+                         balance=balance, matrix_scale=matrix_scale)
         self.regions_file_path = regions_file_path
         self.cool_file_path = cool_file_path
         self.fasta_dir = fasta_dir
@@ -36,6 +38,8 @@ class LoopDataset(GenomicDataset):
         self.resolution = 5000
         self.use_aug = use_aug
         self.corigami_loops = corigami_loops
+        self.balance = balance
+        self.matrix_scale = matrix_scale
 
     def _read_regions_file(self):
         """

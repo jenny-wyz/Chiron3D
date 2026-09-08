@@ -34,11 +34,13 @@ def get_feature(path, chr_name, start, end):
     return torch.tensor(feature, dtype=torch.float32).unsqueeze(0)
 
 
-def get_matrix(cool, chrom, start, end):
-    matrix = cool.matrix(balance=False).fetch(f"{chrom}:{start}-{end}")
+def get_matrix(cool, chrom, start, end, balance=False, scale=1.0):
+    matrix = cool.matrix(balance=balance).fetch(f"{chrom}:{start}-{end}")
     matrix = torch.tensor(matrix, dtype=torch.float32)
-    matrix = torch.log(matrix + 1.0)
-    return matrix
+    mask = torch.isfinite(matrix)
+    matrix = torch.nan_to_num(matrix, nan=0.0)
+    matrix = torch.log(matrix * scale + 1.0)
+    return matrix, mask
 
 
 def onehotencode_dna(sequence, channels=4):
