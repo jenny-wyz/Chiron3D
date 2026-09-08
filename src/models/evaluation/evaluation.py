@@ -52,6 +52,8 @@ def init_parser():
     p.add_argument('--n-bins', dest='n_bins', type=int, default=512)
     p.add_argument('--test-chroms', dest='test_chroms', nargs='+', default=["chrX"])
     p.add_argument('--max-offset', type=int, default=None)
+    p.add_argument('--dump-matrices', dest='dump_matrices', default=None,
+                   help='directory to write per-chromosome obs/pred matrix npz')
     return p.parse_args()
 
 
@@ -108,6 +110,7 @@ def main():
         dist_strat_spearman_list = []
 
         xs, ys = {}, {}
+        dump_pred, dump_obs, dump_chr, dump_start, dump_end = [], [], [], [], []
         for batch in tqdm(dl, total=len(dl)):
             test_input = batch["sequence"]
             test_input = test_input.to(device)
@@ -120,7 +123,7 @@ def main():
                 output = torch.clamp(output, min=0)
 
             masks = batch.get("mask", [None] * len(output))
-            for out, true, msk in zip(output, batch["matrix"], masks):
+            for k, (out, true, msk) in enumerate(zip(output, batch["matrix"], masks)):
                 out = out.cpu()   # Move output to CPU
                 true = true.cpu() # Move true matrix to CPU
                 msk = msk.cpu() if msk is not None else None
@@ -134,6 +137,13 @@ def main():
                 true = true.squeeze()
                 if msk is not None:
                     msk = msk.squeeze()
+
+                if args.dump_matrices:
+                    dump_pred.append(out.numpy().astype(np.float16))
+                    dump_obs.append(true.numpy().astype(np.float16))
+                    dump_chr.append(str(batch["chr"][k]))
+                    dump_start.append(int(batch["region_start"][k]))
+                    dump_end.append(int(batch["region_end"][k]))
 
                 l_mse = mse(out, true, msk)
 
@@ -149,7 +159,11 @@ def main():
                 else:
                     out_d, true_d = out, true
 
-                r_p, r_s = insulation_corr(out_d, true_d)
+                # NOTE: conflicting call signatures existed between the two source
+                # scripts (one omitted `res`, the other passed `res=args.resolution`).
+                # This merge keeps the explicit resolution argument - confirm this
+                # matches the intended behavior of metrics.insulation_corr.
+                r_p, r_s = insulation_corr(out_d, true_d, res=args.resolution)
                 dist_p, dist_s, xs, ys = distance_stratified_correlation(
                     out, true, xs, ys, max_offset=args.max_offset)
 
@@ -174,6 +188,22 @@ def main():
             **{f"diag_x_{k}": v for k, v in xs_flat.items()},
             **{f"diag_y_{k}": v for k, v in ys_flat.items()},
         )
+
+        if args.dump_matrices:
+            os.makedirs(args.dump_matrices, exist_ok=True)
+            P = np.stack(dump_pred)
+            O = np.stack(dump_obs)
+            mpath = os.path.join(args.dump_matrices, f"matrices_{chrom}.npz")
+            np.savez_compressed(
+                mpath,
+                pred=P, obs=O,
+                chrom=np.array(dump_chr),
+                region_start=np.asarray(dump_start, np.int64),
+                region_end=np.asarray(dump_end, np.int64),
+                resolution=np.int64(args.resolution),
+                n_bins=np.int64(P.shape[-1]),
+            )
+            print(f"[eval] wrote {mpath}  pred={P.shape}  obs={O.shape}")
 
         overall_mse.extend(mse_list)
         overall_pearson.extend(insu_pearson_list)
