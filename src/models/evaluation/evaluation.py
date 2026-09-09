@@ -110,7 +110,7 @@ def main():
         dist_strat_spearman_list = []
 
         xs, ys = {}, {}
-        dump_pred, dump_obs, dump_chr, dump_start, dump_end = [], [], [], [], []
+        dump_pred, dump_obs, dump_mask, dump_chr, dump_start, dump_end = [], [], [], [], [], []
         for batch in tqdm(dl, total=len(dl)):
             test_input = batch["sequence"]
             test_input = test_input.to(device)
@@ -144,6 +144,8 @@ def main():
                     dump_chr.append(str(batch["chr"][k]))
                     dump_start.append(int(batch["region_start"][k]))
                     dump_end.append(int(batch["region_end"][k]))
+                    dump_mask.append((msk.numpy() if msk is not None
+                                      else np.ones_like(true.numpy(), bool)))
 
                 l_mse = mse(out, true, msk)
 
@@ -165,7 +167,7 @@ def main():
                 # matches the intended behavior of metrics.insulation_corr.
                 r_p, r_s = insulation_corr(out_d, true_d, res=args.resolution)
                 dist_p, dist_s, xs, ys = distance_stratified_correlation(
-                    out, true, xs, ys, max_offset=args.max_offset)
+                    out, true, xs, ys, max_offset=args.max_offset, mask=msk)
 
                 insu_pearson_list.append(r_p)
                 insu_spearman_list.append(r_s)
@@ -202,6 +204,7 @@ def main():
                 region_end=np.asarray(dump_end, np.int64),
                 resolution=np.int64(args.resolution),
                 n_bins=np.int64(P.shape[-1]),
+                mask=np.stack(dump_mask),
             )
             print(f"[eval] wrote {mpath}  pred={P.shape}  obs={O.shape}")
 

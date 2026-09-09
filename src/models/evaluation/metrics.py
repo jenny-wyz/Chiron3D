@@ -61,14 +61,20 @@ def insulation_corr(pred, target, res=5000, radius=125000):
     rs, _ = spearmanr(pred_insu[m], targ_insu[m])
     return float(rp), float(rs)
 
-def distance_stratified_correlation(pred, target, xs, ys, max_offset=None, store_diag=True):
+def distance_stratified_correlation(pred, target, xs, ys, max_offset=None,
+                                    store_diag=True, mask=None):
     pears, spears = [], []
     n = len(pred)
     dmax = n if max_offset is None else min(n, max_offset)
+    mask = _to_np(mask).astype(bool) if mask is not None else None
     for d in range(dmax):
         x = np.diagonal(pred, offset=d)
         y = np.diagonal(target, offset=d)
-        if x.size < 2:
+        if mask is not None:
+            k = np.diagonal(mask, offset=d)
+            x, y = x[k], y[k]
+        if x.size < 2 or np.std(x) == 0 or np.std(y) == 0:
+            pears.append(np.nan); spears.append(np.nan)
             continue
         if store_diag:
             xs.setdefault(d, []).append(np.asarray(x, dtype=np.float32))
