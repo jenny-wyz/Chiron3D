@@ -69,15 +69,16 @@ def init_training(args):
         )
 
     # Early_stopping
-    early_stop_callback = callbacks.EarlyStopping(monitor='val_loss',
+    early_stop_callback = callbacks.EarlyStopping(monitor='pearson_corr_val',
                                                   min_delta=0.00,
                                                   patience=args.trainer_patience,
                                                   verbose=False,
-                                                  mode="min")
+                                                  mode="max")
     # Checkpoints
     checkpoint_callback = callbacks.ModelCheckpoint(dirpath=f'{args.run_save_path}/models',
-                                                    save_top_k=20,
-                                                    monitor='val_loss')
+                                                    save_top_k=args.trainer_save_top_n,
+                                                    monitor='pearson_corr_val',
+                                                    mode="max")
 
     # LR monitor
     lr_monitor = callbacks.LearningRateMonitor(logging_interval='epoch')

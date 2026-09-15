@@ -113,7 +113,7 @@ class TrainModule(pl.LightningModule):
             'pearson_corr_val': torch.tensor(val_p, device=self.device),
             'spearman_corr_val': torch.tensor(val_s, device=self.device),
         }
-        self.log_dict(metrics, prog_bar=True)
+        self.log_dict(metrics, prog_bar=True, sync_dist=True)
 
     def _shared_epoch_end(self, step_outputs):
         loss = torch.tensor(step_outputs).mean()
@@ -125,7 +125,7 @@ class TrainModule(pl.LightningModule):
 
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            mode='min',
+            mode='max',
             factor=0.1,
             patience=5,
             min_lr=1e-7,
@@ -135,7 +135,7 @@ class TrainModule(pl.LightningModule):
             'scheduler': scheduler,
             'interval': 'epoch',
             'frequency': 1,
-            'monitor': 'val_loss',
+            'monitor': 'pearson_corr_val',
             'strict': True,
         }
         return {'optimizer': optimizer, 'lr_scheduler': scheduler_config}

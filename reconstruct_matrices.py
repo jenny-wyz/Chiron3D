@@ -16,6 +16,12 @@ python3 reconstruct_matrices.py \
     --regions data/windows_dm6.bed \
     --chrom chrX \
     --out dumps/matrices_chrX_5k.npz
+
+python3 reconstruct_matrices.py \
+    --metrics metrics_chr6.npz \
+    --regions data/windows_hg19.bed \
+    --chrom chr6 \
+    --out dumps/matrices_chr6.npz
 """
 
 import argparse
