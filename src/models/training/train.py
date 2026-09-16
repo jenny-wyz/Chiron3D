@@ -50,8 +50,17 @@ def init_parser():
     parser.add_argument('--n-bins', dest='n_bins', type=int, default=512,
                         help='Side length N of the predicted map; predicted span C = N * resolution')
 
+    # Trunk (borzoi, convnextdcnn)
+    parser.add_argument('--trunk', dest='trunk', default='corigami',
+                        choices=['borzoi', 'dcnn', 'corigami'], help='Sequence trunk')
+    parser.add_argument('--flank', dest='flank', type=int, default=1024,
+                        help='bp of context each side for local trunks (ignored by borzoi)')
+    parser.add_argument('--asap-ckpt', dest='asap_ckpt', default=None)
+
 
     args = parser.parse_args(args=None if sys.argv[1:] else ['--help'])
+    if getattr(args, 'borzoi', False):
+        args.trunk = 'borzoi'          # legacy flag still works
     return args
 
 

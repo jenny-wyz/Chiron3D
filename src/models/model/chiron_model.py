@@ -117,3 +117,56 @@ class ResidualDownBlock(nn.Module):
         out = out + identity          # merge
         out = self.act(out)           # nonlinearity
         return out
+
+
+
+from src.models.model.dcnn_trunk import DCNNTrunk
+
+
+class Chiron3D_DCNN(nn.Module):
+
+    TRUNK_BIN = 2      # bp per trunk position (stem conv + MaxPool1d(2))
+
+    def __init__(self, mid_hidden=128, resolution=400, n_bins=256,
+                 flank=1024, asap_ckpt=None, dropout=0.1):
+        super().__init__()
+
+        self.resolution = int(resolution)
+        self.n_bins = int(n_bins)
+        self.target_span = self.n_bins * self.resolution
+        self.flank = int(flank)
+        self.input_width = self.target_span + 2 * self.flank
+
+        assert self.resolution % self.TRUNK_BIN == 0, (
+            f"resolution {self.resolution} must be even; trunk sits on a {self.TRUNK_BIN} bp grid")
+        assert self.flank % self.TRUNK_BIN == 0, f"flank {self.flank} must be even"
+        self.pool_factor = self.resolution // self.TRUNK_BIN
+        self.trim = self.flank // self.TRUNK_BIN
+        print(f"[Chiron3D_DCNN] resolution={self.resolution} n_bins={self.n_bins} "
+              f"span={self.target_span} flank={self.flank} input={self.input_width} "
+              f"pool_factor={self.pool_factor}")
+
+        self.trunk = DCNNTrunk(asap_ckpt=asap_ckpt, dropout=dropout)
+
+        self.activation = nn.ReLU()
+        self.projector = nn.Conv1d(self.trunk.out_channels, mid_hidden, kernel_size=1, bias=True)
+
+        self.attn = blocks.AttnModuleSmall(hidden=mid_hidden, record_attn=False)
+        self.decoder = blocks.Decoder(mid_hidden * 2, hidden=128, num_blocks=8, grad_ckpt=True)
+
+    def forward(self, x):
+        if x.shape[-1] != self.input_width:          # tolerate a wider window (e.g. a Borzoi-width bed)
+            off = (x.shape[-1] - self.input_width) // 2
+            assert off >= 0, f"input {x.shape[-1]} bp is narrower than required {self.input_width} bp"
+            x = x[..., off:off + self.input_width]
+        x = self.trunk(x)                            # (B, 256, input_width/2) @ 2 bp
+        x = x[..., self.trim:x.shape[-1] - self.trim]   # drop flank -> (B, 256, span/2)
+        x = self.projector(x)
+        b, c, l = x.shape
+        x = x.view(b, c, self.n_bins, self.pool_factor).mean(-1)
+        x = move_feature_forward(x)
+        x = self.attn(x)
+        x = move_feature_forward(x)
+        x = diagonalize_small(x)
+        x = self.decoder(x).squeeze(1)
+        return x

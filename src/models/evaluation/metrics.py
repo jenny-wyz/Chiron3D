@@ -73,3 +73,14 @@ def distance_stratified_correlation(pred, target, xs, ys, max_offset=None, store
         pears.append(float(rp))
         spears.append(float(rs))
     return pears, spears, xs, ys
+
+
+def insulation_corr_interior(pred, target, res=5000, radius=125000):
+    """Insulation correlation on interior bins only — bins whose diamond is not truncated."""
+    pix = int(radius / res)
+    p = np.asarray(chr_score(pred, res=res, radius=radius), dtype=np.float64)[pix:-pix]
+    t = np.asarray(chr_score(target, res=res, radius=radius), dtype=np.float64)[pix:-pix]
+    m = np.isfinite(p) & np.isfinite(t)
+    if m.sum() < 2:
+        return np.nan, np.nan
+    return float(pearsonr(p[m], t[m])[0]), float(spearmanr(p[m], t[m])[0])

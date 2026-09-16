@@ -1,7 +1,7 @@
 from src.models.dataset.genomic_dataset import GenomicDataset
 from src.models.training.module import TrainModule
 from src.models.model.corigami_model import ConvTransModelSmall
-from src.models.evaluation.metrics import mse, insulation_corr, distance_stratified_correlation
+from src.models.evaluation.metrics import mse, insulation_corr, distance_stratified_correlation, insulation_corr_interior
 import torch, numpy as np, argparse, os
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -52,6 +52,7 @@ def init_parser():
     p.add_argument('--max-offset', type=int, default=None)
     p.add_argument('--dump-matrices', dest='dump_matrices', default=None,
                    help='directory to write per-chromosome obs/pred matrix npz')
+    p.add_argument('--insulation-radius', dest='insulation_radius', type=int, default=25000)
     return p.parse_args()
 
 
@@ -135,7 +136,8 @@ def main():
                     dump_start.append(int(batch["region_start"][k]))
                     dump_end.append(int(batch["region_end"][k]))
 
-                r_p, r_s = insulation_corr(out, true, res=args.resolution)
+                r_p, r_s = insulation_corr_interior(out, true, res=args.resolution,
+                                                    radius=args.insulation_radius)
                 l_mse = mse(out, true)
                 dist_p, dist_s, xs, ys = distance_stratified_correlation(
                     out, true, xs, ys, max_offset=args.max_offset)

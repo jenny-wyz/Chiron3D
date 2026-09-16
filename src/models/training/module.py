@@ -134,9 +134,8 @@ class TrainModule(pl.LightningModule):
         if args.num_genom_feat == 0:
             args.genom_feat_path = None  # Dont set it if num genomic features is 0
 
-        use_pretrained_backbone = False
-        if args.borzoi:
-            use_pretrained_backbone = True
+        use_pretrained_backbone = args.trunk in ('borzoi', 'dcnn')   # both want 4-channel one-hot
+        flank = None if args.trunk == 'borzoi' else args.flank
 
         dataset = GenomicDataset(
             regions_file_path=args.regions_file,
@@ -151,6 +150,7 @@ class TrainModule(pl.LightningModule):
             use_pretrained_backbone=use_pretrained_backbone,
             resolution=args.resolution,
             n_bins=args.n_bins,
+            flank=flank,
         )
 
         return dataset

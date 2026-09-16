@@ -1,7 +1,7 @@
 from torch import nn
 from peft import get_peft_model, LoraConfig
 from src.models.model.corigami_model import ConvTransModelSmall
-from src.models.model.chiron_model import Chiron3D
+from src.models.model.chiron_model import Chiron3D, Chiron3D_DCNN
 
 
 def replace_bn_with_groupnorm(model):
@@ -26,24 +26,23 @@ def replace_bn_with_groupnorm(model):
 def get_learnable_params(model, weight_decay=1e-5):
     # Make LoRA LR = head LR = 5e-4
     adapter_lr = 5e-4
-    no_decay = []
-    high_lr  = []
-
+    trunk, high_lr, no_decay = [], [], []
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
-
-        # Biases, LayerNorm/LayerScale weights (i.e. 1D tensors) → no weight decay
-        if len(param.shape) == 1:
+        if name.startswith('trunk.') or '.trunk.' in name:
+            trunk.append(param)
+        elif len(param.shape) == 1:
             no_decay.append(param)
         else:
-            # Everything else (including "lora" modules) → high_lr group
             high_lr.append(param)
-
-    return [
+    groups = [
         {'params': high_lr, 'weight_decay': 1e-5, 'lr': adapter_lr},
         {'params': no_decay, 'weight_decay': 0, 'lr': adapter_lr},
     ]
+    if trunk:
+        groups.append({'params': trunk, 'weight_decay': 1e-5, 'lr': 1e-4})
+    return groups
 
 def set_lora(model):
     lora_config = LoraConfig(
@@ -61,13 +60,18 @@ def set_lora(model):
 
 
 def get_model(args):
-    if args.borzoi:
+    trunk = getattr(args, 'trunk', 'borzoi' if args.borzoi else 'corigami')
+    if trunk == 'borzoi':
         model = Chiron3D(mid_hidden=128, local=args.local,
                          resolution=args.resolution, n_bins=args.n_bins)
         replace_bn_with_groupnorm(model)
-        model = set_lora(model)
-    else:
-        model = ConvTransModelSmall(mid_hidden=128, num_genomic_features=args.num_genom_feat)
-
-    return model
+        return set_lora(model)
+    if trunk == 'dcnn':
+        model = Chiron3D_DCNN(mid_hidden=128,
+                              resolution=args.resolution, n_bins=args.n_bins,
+                              flank=args.flank, asap_ckpt=args.asap_ckpt)
+        replace_bn_with_groupnorm(model.attn)        # head only
+        replace_bn_with_groupnorm(model.decoder)     # NEVER the root
+        return model
+    return ConvTransModelSmall(mid_hidden=128, num_genomic_features=args.num_genom_feat)
 
