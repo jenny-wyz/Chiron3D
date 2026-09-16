@@ -46,6 +46,10 @@ def init_parser():
     p.add_argument('--num-genom-feat', dest='num_genom_feat', type=int, default=0)
     p.add_argument('--ckpt-path', required=True)
     p.add_argument('--borzoi', action='store_true')
+    p.add_argument('--trunk', dest='trunk', default=None,
+                   choices=['borzoi', 'dcnn', 'corigami'], help='Sequence trunk')
+    p.add_argument('--flank', dest='flank', type=int, default=1024,
+                   help='bp of context each side for local trunks (ignored by borzoi)')
     p.add_argument('--resolution', dest='resolution', type=int, default=400)
     p.add_argument('--n-bins', dest='n_bins', type=int, default=512)
     p.add_argument('--test-chroms', dest='test_chroms', nargs='+', default=["chrX"])
@@ -63,23 +67,34 @@ def main():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(args.borzoi)
-    if not args.borzoi:
+    if args.trunk is None:                       # legacy: --borzoi implied the trunk
+        args.trunk = 'borzoi' if args.borzoi else 'corigami'
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"[eval] trunk={args.trunk}")
+
+    if args.trunk == 'corigami':
         model = ConvTransModelSmall(mid_hidden=128, num_genomic_features=args.num_genom_feat).to(device)
         model = _load_weights_into(model, args.ckpt_path, device)
-    else:
+    else:                                        # borzoi and dcnn both live in TrainModule
         model = TrainModule.load_from_checkpoint(args.ckpt_path, map_location=device).to(device)
     model.eval()
 
-    # dont wanna mix up n-bins checkpoint
-    if args.borzoi:
+    if args.trunk != 'corigami':
         ck = model.hparams["args"]
         ck_r, ck_n = getattr(ck, "resolution", 5000), getattr(ck, "n_bins", 105)
-        print(f"[eval] checkpoint geometry: resolution={ck_r} n_bins={ck_n}")
+        ck_trunk = getattr(ck, "trunk", "borzoi")
+        ck_flank = getattr(ck, "flank", None)
+        print(f"[eval] checkpoint geometry: trunk={ck_trunk} resolution={ck_r} "
+              f"n_bins={ck_n} flank={ck_flank}")
         assert (args.resolution, args.n_bins) == (ck_r, ck_n), \
             f"CLI (r={args.resolution}, N={args.n_bins}) != checkpoint (r={ck_r}, N={ck_n})"
+        assert args.trunk == ck_trunk, f"CLI trunk={args.trunk} != checkpoint trunk={ck_trunk}"
+        if args.trunk == 'dcnn':
+            assert args.flank == ck_flank, f"CLI flank={args.flank} != checkpoint flank={ck_flank}"
 
-    use_pretrained_backbone = bool(args.borzoi)
-    corigami_model = not bool(args.borzoi) # clip C.Origami preds for comparison
+    use_pretrained_backbone = args.trunk in ('borzoi', 'dcnn')
+    corigami_model = args.trunk == 'corigami'
 
     overall_mse = []
     overall_pearson = []
@@ -96,6 +111,7 @@ def main():
             use_pretrained_backbone=use_pretrained_backbone,
             resolution=args.resolution,
             n_bins=args.n_bins,
+            flank=None if args.trunk != 'dcnn' else args.flank,
         )
 
         dl = DataLoader(ds, batch_size=1, shuffle=False, num_workers=4, pin_memory=True)
@@ -153,8 +169,11 @@ def main():
         dist_s_mat = np.asarray(dist_strat_spearman_list, dtype=float)
         xs_flat = {str(d): np.concatenate(v) for d, v in xs.items()}
         ys_flat = {str(d): np.concatenate(v) for d, v in ys.items()}
+
+        tag = args.dump_matrices or f"metrics_{args.trunk}"
+        os.makedirs(tag, exist_ok=True)
         np.savez_compressed(
-            f"metrics_{chrom}.npz",
+            os.path.join(tag, f"metrics_{chrom}.npz"),
             insu_pearson=np.asarray(insu_pearson_list, float),
             insu_spearman=np.asarray(insu_spearman_list, float),
             mse=np.asarray(mse_list, float),
