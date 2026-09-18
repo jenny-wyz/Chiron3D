@@ -22,14 +22,14 @@ conda activate chiron
 
 python3 -m src.models.training.train \
   --seed 2077 \
-  --save_path checkpoints_dcnn_r800_N654_f1024 \
+  --save_path checkpoints_dcnn_v2 \
   --regions-file data/windows_dm6_C523200_f1024.bed \
   --fasta-dir data/dmel_chromosomes \
   --cool-file data/lbm.800.cool \
   --resolution 800 --n-bins 654 \
   --trunk dcnn --flank 1024 \
-  --num-genom-feat 0 \
-  --patience 7 --max-epochs 25 --save-top-n 1 \
+  --num-genom-feat 0 --accum 2 \
+  --patience 25 --max-epochs 150 --save-top-n 1 \
   --num-gpu 4 --batch-size 4 --ddp-disabled --num-workers 16
 
 

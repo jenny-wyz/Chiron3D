@@ -87,7 +87,7 @@ class TrainModule(pl.LightningModule):
         ret_metrics = self._shared_epoch_end(step_outputs)
 
         metrics = {
-            'train_loss': ret_metrics['loss'] * 8,
+            'train_loss': ret_metrics['loss'] * self.args.accum,
         }
 
         self.log_dict(metrics, prog_bar=True)

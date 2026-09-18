@@ -37,6 +37,7 @@ def init_parser():
 
     # Dataloader Parameters
     parser.add_argument('--batch-size', dest='dataloader_batch_size', default=8, type=int, help='Batch size')
+    parser.add_argument('--accum', dest='accum', type=int, default=8, help='gradient accumulation steps')
     parser.add_argument('--ddp-disabled', dest='dataloader_ddp_disabled', action='store_false',
                         help='Using ddp, adjust batch size')
     parser.add_argument('--num-workers', dest='dataloader_num_workers', default=16, type=int, help='Dataloader workers')
@@ -119,7 +120,7 @@ def get_trainer(args, all_loggers, early_stop_callback, checkpoint_callback, lr_
     else:
         return pl.Trainer(strategy="ddp",
                           accelerator="gpu", devices=args.trainer_num_gpu,
-                          accumulate_grad_batches=8,
+                          accumulate_grad_batches=args.accum,
                           gradient_clip_val=1,
                           logger=all_loggers,
                           precision="bf16",

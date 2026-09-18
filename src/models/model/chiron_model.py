@@ -147,6 +147,7 @@ class Chiron3D_DCNN(nn.Module):
               f"pool_factor={self.pool_factor}")
 
         self.trunk = DCNNTrunk(asap_ckpt=asap_ckpt, dropout=dropout)
+        self.trunk_from_scratch = asap_ckpt is None
 
         self.activation = nn.ReLU()
         self.projector = nn.Conv1d(self.trunk.out_channels, mid_hidden, kernel_size=1, bias=True)

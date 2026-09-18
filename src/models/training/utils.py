@@ -41,7 +41,10 @@ def get_learnable_params(model, weight_decay=1e-5):
         {'params': no_decay, 'weight_decay': 0, 'lr': adapter_lr},
     ]
     if trunk:
-        groups.append({'params': trunk, 'weight_decay': 1e-5, 'lr': 1e-4})
+        from_scratch = getattr(model, 'trunk_from_scratch', True)
+        trunk_lr = adapter_lr if from_scratch else 1e-4
+        print(f"[get_learnable_params] trunk group: {len(trunk)} tensors, lr={trunk_lr}")
+        groups.append({'params': trunk, 'weight_decay': 1e-5, 'lr': trunk_lr})
     return groups
 
 def set_lora(model):
