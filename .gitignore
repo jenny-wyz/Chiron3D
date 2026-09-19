@@ -19,4 +19,5 @@ data.zip
 sblogs/
 loopeval/
 figs/
-dcnn_diagnostics/
+dcnn_diagnostics
+apa*.png
