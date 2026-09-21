@@ -58,6 +58,10 @@ def init_parser():
                         help='bp of context each side for local trunks (ignored by borzoi)')
     parser.add_argument('--asap-ckpt', dest='asap_ckpt', default=None)
 
+    # v3a
+    parser.add_argument('--oe-target', dest='oe_target', action='store_true',
+                        help='predict log observed/expected with unmappable bins masked')
+
 
     args = parser.parse_args(args=None if sys.argv[1:] else ['--help'])
     if getattr(args, 'borzoi', False):

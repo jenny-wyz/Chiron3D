@@ -54,4 +54,4 @@ print(f"wrote apa_{os.path.basename(DUMP)}.png")
 
 
 # python3 scripts/apa.py dump_dcnn_v2 /cluster/work/boeva/Gambetta_collaboration/Loops/all_loops.tsv
-# python3 scripts/apa.py dump_borzoi /cluster/work/boeva/Gambetta_collaboration/Loops/all_loops.tsv
+# python3 scripts/apa.py dump_borzoi_f1024 /cluster/work/boeva/Gambetta_collaboration/Loops/all_loops.tsv

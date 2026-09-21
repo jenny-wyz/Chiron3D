@@ -14,7 +14,7 @@ class GenomicDataset(Dataset):
 
     def __init__(self, regions_file_path, cool_file_path, fasta_dir, genomic_feature_path=None,
                  mode="train", val_chroms=None, test_chroms=None, use_pretrained_backbone=False,
-                 use_aug=False, resolution=400, n_bins=256, flank=None):
+                 use_aug=False, resolution=400, n_bins=256, flank=None, oe_target=False):
         """
         Args:
             regions_file_path (str): Path to the .bed file with the genomic regions.
@@ -53,6 +53,16 @@ class GenomicDataset(Dataset):
         self.use_aug = use_aug
         self.use_pretrained_backbone = use_pretrained_backbone
         self.dna_channels = 4 if use_pretrained_backbone else 5
+
+        self.oe_target = oe_target
+        if oe_target:
+            prof = np.load("data/expected_log_800.npy")
+            d = np.abs(np.arange(self.n_bins)[:, None] - np.arange(self.n_bins)[None, :])
+            self.expected_2d = torch.tensor(prof[d], dtype=torch.float32)
+            z = np.load("data/bad_bins_800.npz", allow_pickle=True)
+            self.bad_bins = {"chrom": z["chrom"], "start": z["start"], "bad": z["bad"]}
+        else:
+            self.expected_2d = None
 
     def __len__(self):
         return len(self.filtered_regions)
@@ -119,6 +129,18 @@ class GenomicDataset(Dataset):
         assert matrix.shape == (self.n_bins, self.n_bins), (
             f"matrix {tuple(matrix.shape)} != ({self.n_bins}, {self.n_bins}) at "
             f"{chrom}:{target_start}-{target_end}")
+
+        if self.oe_target:
+            matrix = matrix - self.expected_2d
+            bb = self.bad_bins
+            sel = ((bb["chrom"] == output["chr"]) &
+                   (bb["start"] >= target_start) & (bb["start"] < target_end))
+            good = torch.ones(self.n_bins, dtype=torch.float32)
+            idx = (bb["start"][sel] - target_start) // self.resolution
+            good[idx[bb["bad"][sel]]] = 0.0
+            output["mask"] = good[:, None] * good[None, :]
+        else:
+            output["mask"] = torch.ones(self.n_bins, self.n_bins)
 
         features = []
         for file_path in self.bw_files:

@@ -2,8 +2,8 @@
 
 #SBATCH -p gpu
 #SBATCH --gres=gpu:rtx4090:2
-#SBATCH --job-name=dcnnevalv2
-#SBATCH --output=dcnn_eval_v2.output.txt
+#SBATCH --job-name=dcnnevalv3a
+#SBATCH --output=dcnn_v3a_eval.output.txt
 #SBATCH --time=05:00:00
 #SBATCH --mem=128G
 
@@ -24,18 +24,32 @@ scontrol show job $SLURM_JOB_ID | grep -i -E "gres|tres|nodelist"
 python3 -c "import torch;print(torch.cuda.is_available(), torch.cuda.device_count())"
 
 
-# rez 800, nbins 654 ---------------------------------------------
+# DCNN, rez 800, nbins 654 ---------------------------------------------
 
 python3 -m src.models.evaluation.evaluation \
   --regions-file data/windows_dm6_C523200_f1024.bed \
   --fasta-dir data/dmel_chromosomes \
   --cool-file data/lbm.800.cool \
   --genomic-feature UNUSED --num-genom-feat 0 \
-  --ckpt-path checkpoints_dcnn_v2/models/epoch=51-step=4264.ckpt \
+  --ckpt-path checkpoints_dcnn_v3a/models/epoch=79-step=6560.ckpt \
   --resolution 800 --n-bins 654 \
   --trunk dcnn --flank 1024 \
   --test-chroms chrX chr2L \
-  --dump-matrices dump_dcnn_v2
+  --dump-matrices dump_dcnn_v3a
+
+
+# BORZOI, rez 800, nbins 654 ---------------------------------------------
+
+# python3 -m src.models.evaluation.evaluation \
+#   --regions-file data/windows_dm6_C523200_f1024.bed \
+#   --fasta-dir data/dmel_chromosomes \
+#   --cool-file data/lbm.800.cool \
+#   --genomic-feature UNUSED --num-genom-feat 0 \
+#   --ckpt-path checkpoints_r800_N654_nb8_2L/models/epoch=23-step=504.ckpt \
+#   --resolution 800 --n-bins 654 \
+#   --trunk borzoi --flank 1024 \
+#   --test-chroms chrX chr2L \
+#   --dump-matrices dump_borzoi_f1024
 
 
 echo "JOB ENDED at: $(date)"

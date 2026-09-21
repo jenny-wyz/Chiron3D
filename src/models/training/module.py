@@ -53,8 +53,8 @@ class TrainModule(pl.LightningModule):
         inputs.requires_grad_()
         outputs = self(inputs)
 
-        criterion = torch.nn.MSELoss()
-        loss = criterion(outputs, mat)
+        mask = batch["mask"].to(outputs.device)
+        loss = (((outputs - mat) ** 2) * mask).sum() / mask.sum().clamp(min=1)
 
         metrics = {'train_step_loss': loss}
         self.log_dict(metrics, batch_size=inputs.shape[0], prog_bar=True)
@@ -78,8 +78,8 @@ class TrainModule(pl.LightningModule):
     def _shared_eval_step(self, batch, batch_idx):
         inputs, mat = self.proc_batch(batch)
         outputs = self(inputs)
-        criterion = torch.nn.MSELoss()
-        loss = criterion(outputs, mat)
+        mask = batch["mask"].to(outputs.device)
+        loss = (((outputs - mat) ** 2) * mask).sum() / mask.sum().clamp(min=1)
         return loss
 
     def training_epoch_end(self, step_outputs):
@@ -151,6 +151,7 @@ class TrainModule(pl.LightningModule):
             resolution=args.resolution,
             n_bins=args.n_bins,
             flank=flank,
+            oe_target=getattr(args, 'oe_target', False),
         )
 
         return dataset
