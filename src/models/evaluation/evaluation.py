@@ -57,6 +57,8 @@ def init_parser():
     p.add_argument('--dump-matrices', dest='dump_matrices', default=None,
                    help='directory to write per-chromosome obs/pred matrix npz')
     p.add_argument('--insulation-radius', dest='insulation_radius', type=int, default=25000)
+    p.add_argument('--oe-target', dest='oe_target', action='store_true',
+                   help='checkpoint predicts log O/E; add expected back before scoring')
     return p.parse_args()
 
 
@@ -92,6 +94,16 @@ def main():
         assert args.trunk == ck_trunk, f"CLI trunk={args.trunk} != checkpoint trunk={ck_trunk}"
         if args.trunk == 'dcnn':
             assert args.flank == ck_flank, f"CLI flank={args.flank} != checkpoint flank={ck_flank}"
+
+    if args.trunk != 'corigami' and getattr(ck, 'oe_target', False):
+        args.oe_target = True                      # auto-detect from checkpoint hparams
+
+    expected_2d = None
+    if args.oe_target:
+        prof = np.load("data/expected_log_800.npy")
+        dm = np.abs(np.arange(args.n_bins)[:, None] - np.arange(args.n_bins)[None, :])
+        expected_2d = torch.tensor(prof[dm], dtype=torch.float32, device=device)
+        print(f"[eval] O/E mode: adding expected back (E[0]={prof[0]:.3f}, E[-1]={prof[-1]:.3f})")
 
     use_pretrained_backbone = args.trunk in ('borzoi', 'dcnn')
     corigami_model = args.trunk == 'corigami'
@@ -133,6 +145,8 @@ def main():
 
             with torch.no_grad():
                 output = model(test_input)
+                if expected_2d is not None:
+                    output = output + expected_2d
                 output = torch.clamp(output, min=0)
 
             for k, (out, true) in enumerate(zip(output, batch["matrix"])):

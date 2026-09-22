@@ -35,7 +35,8 @@ class TrainModule(pl.LightningModule):
 
     def _accumulate_corr(self, outputs, mats, store: str):
         with torch.no_grad():
-            outputs = torch.clamp(outputs, min=0)
+            if not getattr(self.args, 'oe_target', False):
+                outputs = torch.clamp(outputs, min=0)
             for out, true in zip(outputs, mats):
                 out_c = out.detach().to(torch.float32).cpu()
                 true_c = true.detach().to(torch.float32).cpu()
