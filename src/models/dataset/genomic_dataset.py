@@ -15,7 +15,7 @@ class GenomicDataset(Dataset):
     def __init__(self, regions_file_path, cool_file_path, fasta_dir, genomic_feature_path=None,
                  mode="train", val_chroms=None, test_chroms=None, use_pretrained_backbone=False,
                  use_aug=False, resolution=400, n_bins=256, flank=None, oe_target=False,
-                 loop_file=None):
+                 loop_file=None, balance=False, matrix_scale=1.0, expected_file=None, bad_bins_file=None):
         """
         Args:
             regions_file_path (str): Path to the .bed file with the genomic regions.
@@ -56,14 +56,24 @@ class GenomicDataset(Dataset):
         self.dna_channels = 4 if use_pretrained_backbone else 5
 
         self.oe_target = oe_target
+        self.balance = bool(balance)
+        self.matrix_scale = float(matrix_scale)
+        self.bad_bins = None
+        self.expected_2d = None
+        if bad_bins_file is None and (oe_target or self.balance):
+            bad_bins_file = "data/bad_bins_800_bal.npz" if self.balance else "data/bad_bins_800.npz"
+        if expected_file is None and oe_target:
+            expected_file = "data/expected_log_800_bal.npy" if self.balance else "data/expected_log_800.npy"
         if oe_target:
-            prof = np.load("data/expected_log_800.npy")
+            prof = np.load(expected_file)
+            assert len(prof) >= self.n_bins, f"{expected_file} has {len(prof)} diagonals, need {self.n_bins}"
             d = np.abs(np.arange(self.n_bins)[:, None] - np.arange(self.n_bins)[None, :])
             self.expected_2d = torch.tensor(prof[d], dtype=torch.float32)
-            z = np.load("data/bad_bins_800.npz", allow_pickle=True)
+        if oe_target or self.balance:
+            z = np.load(bad_bins_file, allow_pickle=True)
             self.bad_bins = {"chrom": z["chrom"], "start": z["start"], "bad": z["bad"]}
-        else:
-            self.expected_2d = None
+            print(f"[GenomicDataset] mode={mode} balance={self.balance} scale={self.matrix_scale:g} "
+                  f"oe_target={oe_target} expected={expected_file} bad_bins={bad_bins_file}")
 
         self.loops = None
         if loop_file:
@@ -139,13 +149,15 @@ class GenomicDataset(Dataset):
             f"expected {self.input_width} -- regenerate the bed with a larger edge margin")
         sequence = onehotencode_dna(seq, self.dna_channels)
 
-        matrix = get_matrix(self.cool, chrom, target_start, target_end)
+        matrix = get_matrix(self.cool, chrom, target_start, target_end,
+                            balance=self.balance, matrix_scale=self.matrix_scale)
         assert matrix.shape == (self.n_bins, self.n_bins), (
             f"matrix {tuple(matrix.shape)} != ({self.n_bins}, {self.n_bins}) at "
             f"{chrom}:{target_start}-{target_end}")
 
         if self.oe_target:
             matrix = matrix - self.expected_2d
+        if self.bad_bins is not None:
             bb = self.bad_bins
             sel = ((bb["chrom"] == output["chr"]) &
                    (bb["start"] >= target_start) & (bb["start"] < target_end))

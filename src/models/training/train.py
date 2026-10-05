@@ -61,6 +61,15 @@ def init_parser():
     # v3a
     parser.add_argument('--oe-target', dest='oe_target', action='store_true',
                         help='predict log observed/expected with unmappable bins masked')
+    # v4: ICE-balanced target
+    parser.add_argument('--balance', dest='balance', action='store_true',
+                        help='use ICE-balanced contacts (cool must have a weight column); bad bins masked')
+    parser.add_argument('--matrix-scale', dest='matrix_scale', type=float, default=1.0,
+                        help='with --balance: target = log(balanced * scale + 1); use 1/psi (e.g. 2621.2)')
+    parser.add_argument('--expected-file', dest='expected_file', default=None,
+                        help='per-diagonal mean profile for --oe-target (default picks raw/bal file)')
+    parser.add_argument('--bad-bins-file', dest='bad_bins_file', default=None,
+                        help='npz of bad bins to mask (default picks raw/bal file)')
     # v3b
     parser.add_argument('--loop-file', dest='loop_file', default=None,
                         help='TSV of curated loop anchors; enables the 2nd decoder channel')

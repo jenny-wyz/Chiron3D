@@ -203,6 +203,10 @@ class TrainModule(pl.LightningModule):
             flank=flank,
             oe_target=getattr(args, 'oe_target', False),
             loop_file=getattr(args, 'loop_file', None),
+            balance=getattr(args, 'balance', False),
+            matrix_scale=getattr(args, 'matrix_scale', 1.0),
+            expected_file=getattr(args, 'expected_file', None),
+            bad_bins_file=getattr(args, 'bad_bins_file', None),
         )
 
         return dataset

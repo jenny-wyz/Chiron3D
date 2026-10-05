@@ -60,6 +60,12 @@ def init_parser():
     p.add_argument('--oe-target', dest='oe_target', action='store_true',
                    help='checkpoint predicts log O/E; add expected back before scoring')
     p.add_argument('--loop-file', dest='loop_file', default=None)
+    p.add_argument('--balance', dest='balance', action='store_true',
+                   help='checkpoint was trained on ICE-balanced data (auto-detected from hparams if present)')
+    p.add_argument('--matrix-scale', dest='matrix_scale', type=float, default=None,
+                   help='scale used in training (auto-detected from hparams if present)')
+    p.add_argument('--expected-file', dest='expected_file', default=None)
+    p.add_argument('--bad-bins-file', dest='bad_bins_file', default=None)
     return p.parse_args()
 
 
@@ -98,10 +104,20 @@ def main():
 
     if args.trunk != 'corigami' and getattr(ck, 'oe_target', False):
         args.oe_target = True                      # auto-detect from checkpoint hparams
+    if args.trunk != 'corigami' and getattr(ck, 'balance', False):
+        args.balance = True                        # auto-detect ICE training from checkpoint hparams
+        if args.matrix_scale is None:
+            args.matrix_scale = float(getattr(ck, 'matrix_scale', 1.0))
+    if args.matrix_scale is None:
+        args.matrix_scale = 1.0
+    if args.expected_file is None:
+        args.expected_file = "data/expected_log_800_bal.npy" if args.balance else "data/expected_log_800.npy"
+    print(f"[eval] balance={args.balance} matrix_scale={args.matrix_scale:g} oe_target={args.oe_target} "
+          f"expected={args.expected_file}")
 
     expected_2d = None
     if args.oe_target:
-        prof = np.load("data/expected_log_800.npy")
+        prof = np.load(args.expected_file)
         dm = np.abs(np.arange(args.n_bins)[:, None] - np.arange(args.n_bins)[None, :])
         expected_2d = torch.tensor(prof[dm], dtype=torch.float32, device=device)
         print(f"[eval] O/E mode: adding expected back (E[0]={prof[0]:.3f}, E[-1]={prof[-1]:.3f})")
@@ -125,6 +141,9 @@ def main():
             resolution=args.resolution,
             n_bins=args.n_bins,
             flank=None if args.trunk != 'dcnn' else args.flank,
+            balance=args.balance,                   # observed map in the same (balanced) space as training
+            matrix_scale=args.matrix_scale,         # NOTE: oe_target is NOT passed: prediction gets expected added back
+            bad_bins_file=args.bad_bins_file,
         )
 
         dl = DataLoader(ds, batch_size=1, shuffle=False, num_workers=4, pin_memory=True)
@@ -136,7 +155,7 @@ def main():
         dist_strat_spearman_list = []
 
         xs, ys = {}, {}
-        dump_pred, dump_obs, dump_chr, dump_start, dump_end = [], [], [], [], []
+        dump_pred, dump_obs, dump_chr, dump_start, dump_end, dump_mask = [], [], [], [], [], []
         for batch in tqdm(dl, total=len(dl)):
             test_input = batch["sequence"]
             test_input = test_input.to(device)
@@ -162,17 +181,19 @@ def main():
 
                 out = out.squeeze()
                 true = true.squeeze()
+                keep = batch["mask"][k].cpu().squeeze().numpy() > 0   # False on bad (unmappable) bins
 
                 if args.dump_matrices:
                     dump_pred.append(out.numpy().astype(np.float16))
                     dump_obs.append(true.numpy().astype(np.float16))
+                    dump_mask.append(keep)
                     dump_chr.append(str(batch["chr"][k]))
                     dump_start.append(int(batch["region_start"][k]))
                     dump_end.append(int(batch["region_end"][k]))
 
                 r_p, r_s = insulation_corr_interior(out, true, res=args.resolution,
                                                     radius=args.insulation_radius)
-                l_mse = mse(out, true)
+                l_mse = mse(out.numpy()[keep], true.numpy()[keep])   # masked MSE (identical to before when no bad bins)
                 dist_p, dist_s, xs, ys = distance_stratified_correlation(
                     out, true, xs, ys, max_offset=args.max_offset)
 
@@ -208,7 +229,7 @@ def main():
             mpath = os.path.join(args.dump_matrices, f"matrices_{chrom}.npz")
             np.savez_compressed(
                 mpath,
-                pred=P, obs=O,
+                pred=P, obs=O, mask=np.stack(dump_mask),
                 chrom=np.array(dump_chr),
                 region_start=np.asarray(dump_start, np.int64),
                 region_end=np.asarray(dump_end, np.int64),
