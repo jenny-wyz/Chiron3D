@@ -1,6 +1,6 @@
 import numpy as np, pandas as pd, glob, os, sys
 DUMP  = sys.argv[1]
-LOOPS = sys.argv[2] if len(sys.argv) > 2 else "data/all_loops.tsv"
+LOOPS = sys.argv[2] if len(sys.argv) > 2 else "/cluster/work/boeva/Gambetta_collaboration/Loops/all_loops.tsv"
 PAD, SHIFT = 10, 40                      # SHIFT bins along the diagonal = distance-matched null
 
 lp = pd.read_csv(LOOPS, sep="\t")
@@ -43,5 +43,5 @@ print(f"  predicted APA : {enrich(real.mean(0)):+.4f}   95% CI [{lo:+.4f}, {hi:+
 print(f"  shifted null  : {enrich(np.array(null).mean(0)):+.4f}  ({len(null)} patches)")
 
 
-# python3 scripts/apa_stats.py dump_dcnn_v2 /cluster/work/boeva/Gambetta_collaboration/Loops/all_loops.tsv
+# python3 scripts/apa_stats.py dump_dcnn_v3b2 /cluster/work/boeva/Gambetta_collaboration/Loops/all_loops.tsv
 # python3 scripts/apa_stats.py dump_borzoi_f1024 /cluster/work/boeva/Gambetta_collaboration/Loops/all_loops.tsv

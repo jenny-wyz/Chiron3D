@@ -185,7 +185,8 @@ class ResBlockDilated(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, in_channel, hidden=256, filter_size=3, num_blocks=5, grad_ckpt=False):
+    def __init__(self, in_channel, hidden=256, filter_size=3, num_blocks=5, grad_ckpt=False,
+                 out_channels=1):
         super(Decoder, self).__init__()
         self.filter_size = filter_size
         self.grad_ckpt = grad_ckpt
@@ -197,7 +198,7 @@ class Decoder(nn.Module):
             nn.ReLU(),
         )
         self.res_blocks = self.get_res_blocks(num_blocks, hidden)
-        self.conv_end = nn.Conv2d(hidden, 1, 1)
+        self.conv_end = nn.Conv2d(hidden, out_channels, 1)
 
     def forward(self, x):
         x = self.conv_start(x)

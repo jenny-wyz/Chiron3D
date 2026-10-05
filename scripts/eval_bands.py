@@ -15,5 +15,5 @@ for lo, hi in [(1, 10), (10, 50), (50, 150), (150, N)]:
     print(f"{lo*800//1000:>5}-{hi*800//1000:<5}kb {mse:8.4f} {base:8.4f} {1-mse/base:+8.3f}")
 
 
-# python3 scripts/eval_bands.py dump_dcnn_v2
+# python3 scripts/eval_bands.py dump_dcnn_v3b2
 # python3 scripts/eval_bands.py dump_borzoi

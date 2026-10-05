@@ -9,6 +9,21 @@ import numpy as np
 from src.models.evaluation.metrics import mse, insulation_corr
 import math
 
+LOOP_POS_MASS = 20.67
+
+def sigmoid_focal_loss(logits, targets, alpha=0.999, gamma=2.0, normalizer=None):
+    p = torch.sigmoid(logits)
+    ce = torch.nn.functional.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+    p_t = p * targets + (1 - p) * (1 - targets)
+    loss = ce * ((1 - p_t) ** gamma)
+    if alpha >= 0:
+        a_t = alpha * targets + (1 - alpha) * (1 - targets)
+        loss = a_t * loss
+    if normalizer is None:
+        normalizer = LOOP_POS_MASS * logits.shape[0]      # constant, never batch-dependent
+    return loss.sum() / normalizer
+    
+
 class TrainModule(pl.LightningModule):
 
     def __init__(self, args):
@@ -49,15 +64,50 @@ class TrainModule(pl.LightningModule):
                     if not np.isnan(r_spearman):
                         self._val_spearmans.append(float(r_spearman))
 
+    def _compute_loss(self, outputs, mat, batch):
+        """Returns (total, loss_map, loss_loop). Reduces to v2/v3a when no loop head."""
+        mask = batch["mask"].to(outputs.device)
+        if getattr(self.args, "loop_file", None):
+            pred_map, pred_loop = outputs[:, 0], outputs[:, 1]
+        else:
+            pred_map, pred_loop = outputs, None
+
+        loss_map = (((pred_map - mat) ** 2) * mask).sum() / mask.sum().clamp(min=1)
+        if pred_loop is None:
+            zero = torch.zeros((), device=outputs.device)
+            return loss_map, loss_map, zero
+
+        loss_loop = sigmoid_focal_loss(pred_loop, batch["loop_hm"].to(outputs.device),
+                                       alpha=float(getattr(self.args, "loop_alpha", 0.999)),
+                                       gamma=2.0)
+        w = float(getattr(self.args, "loop_weight", 50.0))
+
+        with torch.no_grad():
+            hm = batch["loop_hm"].to(outputs.device)
+            pos = hm > 0.5
+            p = torch.sigmoid(pred_loop)
+            B = pred_loop.shape[0]
+            self.log("bs", float(B), prog_bar=True)
+            self.log("npos_per_win", pos.sum().float() / B, prog_bar=True)
+            self.log("loop_p_neg", p[~pos].mean(), prog_bar=True)
+            if pos.any():
+                self.log("loop_p_pos", p[pos].mean(), prog_bar=True)
+            
+        return loss_map + w * loss_loop, loss_map, loss_loop
+
+    def _map_channel(self, outputs):
+        return outputs[:, 0] if getattr(self.args, "loop_file", None) else outputs
+
     def training_step(self, batch, batch_idx):
         inputs, mat = self.proc_batch(batch)
         inputs.requires_grad_()
         outputs = self(inputs)
 
-        mask = batch["mask"].to(outputs.device)
-        loss = (((outputs - mat) ** 2) * mask).sum() / mask.sum().clamp(min=1)
+        loss, loss_map, loss_loop = self._compute_loss(outputs, mat, batch)
 
-        metrics = {'train_step_loss': loss}
+        metrics = {'train_step_loss': loss,
+                   'train_step_map': loss_map,
+                   'train_step_loop': loss_loop}
         self.log_dict(metrics, batch_size=inputs.shape[0], prog_bar=True)
         return loss
 
@@ -69,7 +119,7 @@ class TrainModule(pl.LightningModule):
         inputs, mat = self.proc_batch(batch)
         with torch.no_grad():
             outputs = self(inputs)
-        self._accumulate_corr(outputs, mat, store="val")
+        self._accumulate_corr(self._map_channel(outputs), mat, store="val")
         return ret_metrics
 
     def test_step(self, batch, batch_idx):
@@ -79,8 +129,7 @@ class TrainModule(pl.LightningModule):
     def _shared_eval_step(self, batch, batch_idx):
         inputs, mat = self.proc_batch(batch)
         outputs = self(inputs)
-        mask = batch["mask"].to(outputs.device)
-        loss = (((outputs - mat) ** 2) * mask).sum() / mask.sum().clamp(min=1)
+        loss, _, _ = self._compute_loss(outputs, mat, batch)
         return loss
 
     def training_epoch_end(self, step_outputs):
@@ -153,6 +202,7 @@ class TrainModule(pl.LightningModule):
             n_bins=args.n_bins,
             flank=flank,
             oe_target=getattr(args, 'oe_target', False),
+            loop_file=getattr(args, 'loop_file', None),
         )
 
         return dataset

@@ -72,7 +72,8 @@ def get_model(args):
     if trunk == 'dcnn':
         model = Chiron3D_DCNN(mid_hidden=128,
                               resolution=args.resolution, n_bins=args.n_bins,
-                              flank=args.flank, asap_ckpt=args.asap_ckpt)
+                              flank=args.flank, asap_ckpt=args.asap_ckpt,
+                              loop_head=bool(getattr(args, 'loop_file', None)))
         replace_bn_with_groupnorm(model.attn)        # head only
         replace_bn_with_groupnorm(model.decoder)     # NEVER the root
         return model

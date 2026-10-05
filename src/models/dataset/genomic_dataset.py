@@ -14,7 +14,8 @@ class GenomicDataset(Dataset):
 
     def __init__(self, regions_file_path, cool_file_path, fasta_dir, genomic_feature_path=None,
                  mode="train", val_chroms=None, test_chroms=None, use_pretrained_backbone=False,
-                 use_aug=False, resolution=400, n_bins=256, flank=None, oe_target=False):
+                 use_aug=False, resolution=400, n_bins=256, flank=None, oe_target=False,
+                 loop_file=None):
         """
         Args:
             regions_file_path (str): Path to the .bed file with the genomic regions.
@@ -63,6 +64,19 @@ class GenomicDataset(Dataset):
             self.bad_bins = {"chrom": z["chrom"], "start": z["start"], "bad": z["bad"]}
         else:
             self.expected_2d = None
+
+        self.loops = None
+        if loop_file:
+            lp = pd.read_csv(loop_file, sep="\t")
+            g = (lp.groupby("loop.ID")
+                   .agg(chr=("anchor.chr", "first"), nchr=("anchor.chr", "nunique"),
+                        s1=("anchor.summit", "min"), s2=("anchor.summit", "max"),
+                        typ=("loop.type", "first")).reset_index())
+            g = g[(g.nchr == 1) & (g.typ == "intra_TAD")]
+            g = g[~g.chr.isin(self.test_chroms)]          # never materialise test loops
+            self.loops = g
+            print(f"[GenomicDataset] mode={mode} loop table: {len(g)} intra-TAD loops "
+                  f"on {sorted(g.chr.unique())}")
 
     def __len__(self):
         return len(self.filtered_regions)
@@ -141,6 +155,21 @@ class GenomicDataset(Dataset):
             output["mask"] = good[:, None] * good[None, :]
         else:
             output["mask"] = torch.ones(self.n_bins, self.n_bins)
+
+        hm = torch.zeros(self.n_bins, self.n_bins)
+        if self.loops is not None:
+            sub = self.loops[(self.loops.chr == output["chr"]) &
+                             (self.loops.s1 >= target_start) & (self.loops.s2 < target_end)]
+            for s1, s2 in zip(sub.s1, sub.s2):
+                i = (s1 - target_start) // self.resolution
+                j = (s2 - target_start) // self.resolution
+                for di in (-1, 0, 1):
+                    for dj in (-1, 0, 1):
+                        if 0 <= i + di < self.n_bins and 0 <= j + dj < self.n_bins:
+                            v = float(np.exp(-(di * di + dj * dj) / 2.0))
+                            hm[i + di, j + dj] = max(hm[i + di, j + dj], v)
+                            hm[j + dj, i + di] = max(hm[j + dj, i + di], v)
+        output["loop_hm"] = hm
 
         features = []
         for file_path in self.bw_files:

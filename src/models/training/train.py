@@ -61,7 +61,12 @@ def init_parser():
     # v3a
     parser.add_argument('--oe-target', dest='oe_target', action='store_true',
                         help='predict log observed/expected with unmappable bins masked')
-
+    # v3b
+    parser.add_argument('--loop-file', dest='loop_file', default=None,
+                        help='TSV of curated loop anchors; enables the 2nd decoder channel')
+    parser.add_argument('--loop-weight', dest='loop_weight', type=float, default=50.0,
+                        help='weight on the focal loop loss')
+    parser.add_argument('--loop-alpha', dest='loop_alpha', type=float, default=0.999)
 
     args = parser.parse_args(args=None if sys.argv[1:] else ['--help'])
     if getattr(args, 'borzoi', False):
@@ -114,7 +119,7 @@ def get_trainer(args, all_loggers, early_stop_callback, checkpoint_callback, lr_
     if args.local:
         return pl.Trainer(accelerator="cpu",
                           devices=1,
-                          gradient_clip_val=1,
+                          gradient_clip_val=1.0,
                           logger=all_loggers,
                           precision="bf16",
                           callbacks=[early_stop_callback,
@@ -125,7 +130,7 @@ def get_trainer(args, all_loggers, early_stop_callback, checkpoint_callback, lr_
         return pl.Trainer(strategy="ddp",
                           accelerator="gpu", devices=args.trainer_num_gpu,
                           accumulate_grad_batches=args.accum,
-                          gradient_clip_val=1,
+                          gradient_clip_val=1.0,
                           logger=all_loggers,
                           precision="bf16",
                           callbacks=[early_stop_callback,

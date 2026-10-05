@@ -2,8 +2,8 @@
 
 #SBATCH -p gpu
 #SBATCH --gres=gpu:rtx4090:2
-#SBATCH --job-name=dcnnevalv3a
-#SBATCH --output=dcnn_v3a_eval.output.txt
+#SBATCH --job-name=dcnnevalv3b2
+#SBATCH --output=dcnn_v3b2_eval.output.txt
 #SBATCH --time=05:00:00
 #SBATCH --mem=128G
 
@@ -31,11 +31,11 @@ python3 -m src.models.evaluation.evaluation \
   --fasta-dir data/dmel_chromosomes \
   --cool-file data/lbm.800.cool \
   --genomic-feature UNUSED --num-genom-feat 0 \
-  --ckpt-path checkpoints_dcnn_v3a/models/epoch=79-step=6560.ckpt \
+  --ckpt-path checkpoints_dcnn_v3b2/models/epoch=4-step=410.ckpt \
   --resolution 800 --n-bins 654 \
   --trunk dcnn --flank 1024 \
   --test-chroms chrX chr2L \
-  --dump-matrices dump_dcnn_v3a
+  --dump-matrices dump_dcnn_v3b2
 
 
 # BORZOI, rez 800, nbins 654 ---------------------------------------------

@@ -128,7 +128,7 @@ class Chiron3D_DCNN(nn.Module):
     TRUNK_BIN = 2      # bp per trunk position (stem conv + MaxPool1d(2))
 
     def __init__(self, mid_hidden=128, resolution=400, n_bins=256,
-                 flank=1024, asap_ckpt=None, dropout=0.1):
+                 flank=1024, asap_ckpt=None, dropout=0.1, loop_head=False):
         super().__init__()
 
         self.resolution = int(resolution)
@@ -153,7 +153,13 @@ class Chiron3D_DCNN(nn.Module):
         self.projector = nn.Conv1d(self.trunk.out_channels, mid_hidden, kernel_size=1, bias=True)
 
         self.attn = blocks.AttnModuleSmall(hidden=mid_hidden, record_attn=False)
-        self.decoder = blocks.Decoder(mid_hidden * 2, hidden=128, num_blocks=8, grad_ckpt=True)
+        self.loop_head = bool(loop_head)
+        self.decoder = blocks.Decoder(mid_hidden * 2, hidden=128, num_blocks=8, grad_ckpt=True,
+                                      out_channels=2 if loop_head else 1)
+        if self.loop_head:
+            import math
+            with torch.no_grad():
+                self.decoder.conv_end.bias[1] = -math.log((1 - 0.01) / 0.01)   # ≈ -4.595
 
     def forward(self, x):
         if x.shape[-1] != self.input_width:          # tolerate a wider window (e.g. a Borzoi-width bed)
@@ -169,5 +175,5 @@ class Chiron3D_DCNN(nn.Module):
         x = self.attn(x)
         x = move_feature_forward(x)
         x = diagonalize_small(x)
-        x = self.decoder(x).squeeze(1)
-        return x
+        x = self.decoder(x)                       # (B, C, N, N)
+        return x if self.loop_head else x[:, 0]   # (B, 2, N, N) or (B, N, N)

@@ -59,6 +59,7 @@ def init_parser():
     p.add_argument('--insulation-radius', dest='insulation_radius', type=int, default=25000)
     p.add_argument('--oe-target', dest='oe_target', action='store_true',
                    help='checkpoint predicts log O/E; add expected back before scoring')
+    p.add_argument('--loop-file', dest='loop_file', default=None)
     return p.parse_args()
 
 
@@ -145,6 +146,9 @@ def main():
 
             with torch.no_grad():
                 output = model(test_input)
+                if getattr(ck, 'loop_file', None) or args.loop_file:
+                    loop_logits = output[:, 1]          # keep if want to dump it
+                    output = output[:, 0]
                 if expected_2d is not None:
                     output = output + expected_2d
                 output = torch.clamp(output, min=0)

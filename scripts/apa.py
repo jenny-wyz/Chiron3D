@@ -3,7 +3,7 @@ import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 DUMP  = sys.argv[1]                       # e.g. dump_dcnn_v2
-LOOPS = sys.argv[2] if len(sys.argv) > 2 else "data/all_loops.tsv"
+LOOPS = sys.argv[2] if len(sys.argv) > 2 else "/cluster/work/boeva/Gambetta_collaboration/Loops/all_loops.tsv"
 PAD   = 10                                # +/- 10 bins = +/- 8 kb
 
 lp = pd.read_csv(LOOPS, sep="\t")
@@ -36,14 +36,17 @@ for f in sorted(glob.glob(os.path.join(DUMP, "matrices_*.npz"))):
 A_o, A_p = np.mean(obs_patches, 0), np.mean(pred_patches, 0)
 
 def enrich(A):
-    centre  = A[PAD-1:PAD+2, PAD-1:PAD+2].mean()
-    corners = np.concatenate([A[:5,:5].ravel(), A[:5,-5:].ravel(),
-                              A[-5:,:5].ravel(), A[-5:,-5:].ravel()])
-    return centre - corners.mean()
+    k = np.arange(-PAD, PAD + 1)
+    centre = A[PAD-1:PAD+2, PAD-1:PAD+2].mean()
+    diag   = A[PAD + k, PAD + k]              # constant j - i
+    bg     = diag[np.abs(k) >= 5].mean()      # same separation, off the anchor
+    return centre - bg
 
 print(f"{len(obs_patches)} loop instances (loops counted once per overlapping window)")
 print(f"observed  APA enrichment: {enrich(A_o):+.4f}")
 print(f"predicted APA enrichment: {enrich(A_p):+.4f}")
+
+np.savez(f"apa_patches_{os.path.basename(DUMP)}.npz", obs=A_o, pred=A_p, n=len(obs_patches))
 
 fig, ax = plt.subplots(1, 2, figsize=(8, 4))
 for a, A, t in zip(ax, [A_o, A_p], ["observed", "predicted"]):
@@ -53,5 +56,5 @@ plt.tight_layout(); plt.savefig(f"apa_{os.path.basename(DUMP)}.png", dpi=150)
 print(f"wrote apa_{os.path.basename(DUMP)}.png")
 
 
-# python3 scripts/apa.py dump_dcnn_v2 /cluster/work/boeva/Gambetta_collaboration/Loops/all_loops.tsv
+# 1
 # python3 scripts/apa.py dump_borzoi_f1024 /cluster/work/boeva/Gambetta_collaboration/Loops/all_loops.tsv

@@ -21,3 +21,5 @@ loopeval/
 figs/
 dcnn_diagnostics
 apa*.png
+tmp/
+oe_dump_dcnn_v3a_chrX_w138.png
