@@ -2,8 +2,8 @@
 
 #SBATCH -p gpu
 #SBATCH --gres=gpu:rtx4090:2
-#SBATCH --job-name=dcnnevalv3b2
-#SBATCH --output=dcnn_v3b2_eval.output.txt
+#SBATCH --job-name=dcnnevalv4b
+#SBATCH --output=dcnn_v4b_eval.output.txt
 #SBATCH --time=05:00:00
 #SBATCH --mem=128G
 
@@ -29,27 +29,16 @@ python3 -c "import torch;print(torch.cuda.is_available(), torch.cuda.device_coun
 python3 -m src.models.evaluation.evaluation \
   --regions-file data/windows_dm6_C523200_f1024.bed \
   --fasta-dir data/dmel_chromosomes \
-  --cool-file data/lbm.800.cool \
+  --cool-file /cluster/work/boeva/Gambetta_collaboration/Micro-C/larval_brain_merge.mcool::resolutions/800 \
   --genomic-feature UNUSED --num-genom-feat 0 \
-  --ckpt-path checkpoints_dcnn_v3b2/models/epoch=4-step=410.ckpt \
+  --ckpt-path checkpoints_dcnn_v4b_ice_oe/models/epoch=48-step=4018.ckpt \
   --resolution 800 --n-bins 654 \
   --trunk dcnn --flank 1024 \
-  --test-chroms chrX chr2L \
-  --dump-matrices dump_dcnn_v3b2
+  --test-chroms chrX \
+  --dump-matrices dump_dcnn_v4b_chrX
 
 
-# BORZOI, rez 800, nbins 654 ---------------------------------------------
-
-# python3 -m src.models.evaluation.evaluation \
-#   --regions-file data/windows_dm6_C523200_f1024.bed \
-#   --fasta-dir data/dmel_chromosomes \
-#   --cool-file data/lbm.800.cool \
-#   --genomic-feature UNUSED --num-genom-feat 0 \
-#   --ckpt-path checkpoints_r800_N654_nb8_2L/models/epoch=23-step=504.ckpt \
-#   --resolution 800 --n-bins 654 \
-#   --trunk borzoi --flank 1024 \
-#   --test-chroms chrX chr2L \
-#   --dump-matrices dump_borzoi_f1024
+# python3 scripts/eval_bands_masked.py dump_dcnn_v4b_chrX
 
 
 echo "JOB ENDED at: $(date)"
