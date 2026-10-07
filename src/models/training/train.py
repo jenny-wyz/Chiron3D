@@ -68,6 +68,8 @@ def init_parser():
                         help='with --balance: target = log(balanced * scale + 1); use 1/psi (e.g. 2621.2)')
     parser.add_argument('--expected-file', dest='expected_file', default=None,
                         help='per-diagonal mean profile for --oe-target (default picks raw/bal file)')
+    parser.add_argument('--dist-weight-file', dest='dist_weight_file', default=None,
+                        help='v4c: .npy with one loss weight per diagonal (see scripts/make_dist_weights.py)')
     parser.add_argument('--bad-bins-file', dest='bad_bins_file', default=None,
                         help='npz of bad bins to mask (default picks raw/bal file)')
     # v3b
