@@ -32,7 +32,7 @@ class TrainModule(pl.LightningModule):
         self.args = args
         self.save_hyperparameters()
         # v4c: optional per-distance loss weights (one value per diagonal), broadcast to an (N, N) buffer
-        self.dist_w = None
+        self.register_buffer("dist_w", None, persistent=False)
         dw = getattr(args, "dist_weight_file", None)
         if dw:
             if os.path.exists(dw):
