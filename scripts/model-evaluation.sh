@@ -2,8 +2,8 @@
 
 #SBATCH -p gpu
 #SBATCH --gres=gpu:rtx4090:2
-#SBATCH --job-name=dcnnevalv4b
-#SBATCH --output=dcnn_v4b_eval.output.txt
+#SBATCH --job-name=v4c80_eval
+#SBATCH --output=v4c80_eval.output.txt
 #SBATCH --time=05:00:00
 #SBATCH --mem=128G
 
@@ -24,18 +24,32 @@ scontrol show job $SLURM_JOB_ID | grep -i -E "gres|tres|nodelist"
 python3 -c "import torch;print(torch.cuda.is_available(), torch.cuda.device_count())"
 
 
-# DCNN, rez 800, nbins 654 ---------------------------------------------
+# DCNN, rez 800, nbins 654 ---------------------v4c s50------------------------
+
+# python3 -m src.models.evaluation.evaluation \
+#   --regions-file data/windows_dm6_C523200_f1024.bed \
+#   --fasta-dir data/dmel_chromosomes \
+#   --cool-file /cluster/work/boeva/Gambetta_collaboration/Micro-C/larval_brain_merge.mcool::resolutions/800 \
+#   --genomic-feature UNUSED --num-genom-feat 0 \
+#   --ckpt-path checkpoints_dcnn_v4c_s50/models/epoch=76-step=6314.ckpt \
+#   --resolution 800 --n-bins 654 \
+#   --trunk dcnn --flank 1024 \
+#   --test-chroms chrX \
+#   --dump-matrices dump_dcnn_v4c_s50_chrX
+
+
+# DCNN, rez 800, nbins 654 ---------------------v4c s80------------------------
 
 python3 -m src.models.evaluation.evaluation \
   --regions-file data/windows_dm6_C523200_f1024.bed \
   --fasta-dir data/dmel_chromosomes \
   --cool-file /cluster/work/boeva/Gambetta_collaboration/Micro-C/larval_brain_merge.mcool::resolutions/800 \
   --genomic-feature UNUSED --num-genom-feat 0 \
-  --ckpt-path checkpoints_dcnn_v4b_ice_oe/models/epoch=48-step=4018.ckpt \
+  --ckpt-path checkpoints_dcnn_v4c_s80/models/epoch=39-step=3280.ckpt \
   --resolution 800 --n-bins 654 \
   --trunk dcnn --flank 1024 \
   --test-chroms chrX \
-  --dump-matrices dump_dcnn_v4b_chrX
+  --dump-matrices dump_dcnn_v4c_s80_chrX
 
 
 # python3 scripts/eval_bands_masked.py dump_dcnn_v4b_chrX

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import os
 from src.models.dataset.utils import get_feature, onehotencode_dna, get_matrix
-from src.models.dataset.augments import shift_aug, reverse_complement, gaussian_noise
+from src.models.dataset.augments import shift_aug, reverse_complement, gaussian_noise, reverse_complement_sample
 
 
 class GenomicDataset(Dataset):
@@ -213,4 +213,6 @@ class GenomicDataset(Dataset):
                 resolution=self.resolution, flank=self.flank)
 
         output = self.build_output(chrom, output)
+        if self.mode == "train" and self.use_aug:
+            output = reverse_complement_sample(output, chance=0.5)
         return output

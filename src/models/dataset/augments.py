@@ -26,6 +26,21 @@ def reverse_complement(sequence, features, matrix, chance=0.5):
     return seq_rc, features_r, matrix_r
 
 
+def reverse_complement_sample(output, chance=0.5):
+    """Correct reverse-complement augmentation for Chiron3D samples (v5a).
+    sequence is (4, L) in A,C,G,T order: reverse along L and swap A<->T, C<->G.
+    matrix, mask and loop_hm are (N, N): flipping the genome flips both axes."""
+    if torch.rand(1).item() >= chance:
+        return output
+    seq = torch.flip(output["sequence"], dims=[1])[[3, 2, 1, 0], :]
+    output = dict(output)
+    output["sequence"] = seq
+    for k in ("matrix", "mask", "loop_hm"):
+        if k in output and torch.is_tensor(output[k]):
+            output[k] = torch.flip(output[k], dims=[0, 1])
+    return output
+
+
 def gaussian_noise(inputs, std=0.1):
     """Add Gaussian noise to a PyTorch tensor."""
     noise = torch.randn_like(inputs) * std

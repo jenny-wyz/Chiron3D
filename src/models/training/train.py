@@ -59,6 +59,8 @@ def init_parser():
     parser.add_argument('--asap-ckpt', dest='asap_ckpt', default=None)
 
     # v3a
+    parser.add_argument('--use-aug', dest='use_aug', action='store_true',
+                        help='v5a: random reverse-complement of sequence + map (train set only)')
     parser.add_argument('--oe-target', dest='oe_target', action='store_true',
                         help='predict log observed/expected with unmappable bins masked')
     # v4: ICE-balanced target

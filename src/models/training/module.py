@@ -217,6 +217,7 @@ class TrainModule(pl.LightningModule):
             flank=flank,
             oe_target=getattr(args, 'oe_target', False),
             loop_file=getattr(args, 'loop_file', None),
+            use_aug=bool(getattr(args, 'use_aug', False)) and mode == 'train',
             balance=getattr(args, 'balance', False),
             matrix_scale=getattr(args, 'matrix_scale', 1.0),
             expected_file=getattr(args, 'expected_file', None),
