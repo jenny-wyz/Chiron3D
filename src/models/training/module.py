@@ -6,7 +6,7 @@ from src.models.training.utils import get_learnable_params, get_model
 from einops import rearrange
 import os
 import numpy as np
-from src.models.evaluation.metrics import mse, insulation_corr
+from src.models.evaluation.metrics import mse, insulation_corr, insulation_corr_interior
 import math
 
 LOOP_POS_MASS = 20.67
@@ -44,6 +44,15 @@ class TrainModule(pl.LightningModule):
             else:
                 print(f"[TrainModule] WARNING: {dw} not found; training WITHOUT distance weights")
         self._last_preview_epoch = -1
+        # validation insulation metric: expected profile to add back for --oe-target runs
+        self.register_buffer('val_expected_2d', None, persistent=False)
+        if getattr(args, 'oe_target', False):
+            ef = getattr(args, 'expected_file', None) or (
+                'data/expected_log_800_bal.npy' if getattr(args, 'balance', False) else 'data/expected_log_800.npy')
+            prof = np.load(ef)
+            idx = np.abs(np.arange(args.n_bins)[:, None] - np.arange(args.n_bins)[None, :])
+            self.register_buffer('val_expected_2d', torch.tensor(prof[idx], dtype=torch.float32), persistent=False)
+            print(f'[TrainModule] val insulation metric adds expected back from {ef}')
 
     def forward(self, x):
         return self.model(x)
@@ -62,13 +71,17 @@ class TrainModule(pl.LightningModule):
 
     def _accumulate_corr(self, outputs, mats, store: str):
         with torch.no_grad():
-            if not getattr(self.args, 'oe_target', False):
-                outputs = torch.clamp(outputs, min=0)
+            if self.val_expected_2d is not None:              # O/E run: back to log-count space
+                e = self.val_expected_2d.to(outputs.device, outputs.dtype)
+                outputs = outputs + e
+                mats = mats + e
+            outputs = torch.clamp(outputs, min=0)
             for out, true in zip(outputs, mats):
                 out_c = out.detach().to(torch.float32).cpu()
                 true_c = true.detach().to(torch.float32).cpu()
 
-                r_pearson, r_spearman = insulation_corr(out_c, true_c, res=self.args.resolution)
+                r_pearson, r_spearman = insulation_corr_interior(out_c, true_c, res=self.args.resolution,
+                                                                 radius=25000)
 
                 if store == "val":
                     if not np.isnan(r_pearson):
@@ -198,7 +211,7 @@ class TrainModule(pl.LightningModule):
         if args.num_genom_feat == 0:
             args.genom_feat_path = None  # Dont set it if num genomic features is 0
 
-        use_pretrained_backbone = args.trunk in ('borzoi', 'dcnn')   # both want 4-channel one-hot
+        use_pretrained_backbone = args.trunk in ('borzoi', 'dcnn', 'tower')   # all want 4-channel one-hot
         flank = None if args.trunk == 'borzoi' else args.flank
 
         dataset = GenomicDataset(

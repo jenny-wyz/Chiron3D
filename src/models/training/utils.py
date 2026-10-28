@@ -2,6 +2,7 @@ from torch import nn
 from peft import get_peft_model, LoraConfig
 from src.models.model.corigami_model import ConvTransModelSmall
 from src.models.model.chiron_model import Chiron3D, Chiron3D_DCNN
+from src.models.model.tower_model import Chiron3D_Tower
 
 
 def replace_bn_with_groupnorm(model):
@@ -69,6 +70,17 @@ def get_model(args):
                          resolution=args.resolution, n_bins=args.n_bins)
         replace_bn_with_groupnorm(model)
         return set_lora(model)
+    if trunk == 'tower':
+        ch = tuple(int(c) for c in str(getattr(args, 'tower_channels', '256,320,384,448,512')).split(','))
+        model = Chiron3D_Tower(mid_hidden=128, resolution=args.resolution, n_bins=args.n_bins,
+                               flank=args.flank, tower_channels=ch,
+                               tower_blocks=int(getattr(args, 'tower_blocks', 8)),
+                               tower_dil_mult=float(getattr(args, 'tower_dil_mult', 2.0)),
+                               tower_pool=getattr(args, 'tower_pool', 'attn'),
+                               loop_head=bool(getattr(args, 'loop_file', None)))
+        replace_bn_with_groupnorm(model.attn)
+        replace_bn_with_groupnorm(model.decoder)
+        return model
     if trunk == 'dcnn':
         model = Chiron3D_DCNN(mid_hidden=128,
                               resolution=args.resolution, n_bins=args.n_bins,

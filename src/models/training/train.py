@@ -53,10 +53,19 @@ def init_parser():
 
     # Trunk (borzoi, convnextdcnn)
     parser.add_argument('--trunk', dest='trunk', default='corigami',
-                        choices=['borzoi', 'dcnn', 'corigami'], help='Sequence trunk')
+                        choices=['borzoi', 'dcnn', 'corigami', 'tower'], help='Sequence trunk')
     parser.add_argument('--flank', dest='flank', type=int, default=1024,
                         help='bp of context each side for local trunks (ignored by borzoi)')
     parser.add_argument('--asap-ckpt', dest='asap_ckpt', default=None)
+    # v6b: tower trunk
+    parser.add_argument('--tower-blocks', dest='tower_blocks', type=int, default=8,
+                        help='v6b: number of dilated residual blocks at 32 bp')
+    parser.add_argument('--tower-dil-mult', dest='tower_dil_mult', type=float, default=2.0,
+                        help='v6b: dilation growth factor per block (2.0 -> 1,2,4,...)')
+    parser.add_argument('--tower-pool', dest='tower_pool', default='attn', choices=['attn', 'max', 'meanmax'],
+                        help='v6b: 32 bp -> 800 bp bin pooling')
+    parser.add_argument('--tower-channels', dest='tower_channels', default='256,320,384,448,512',
+                        help='v6b: stem + 4 tower stage widths')
     parser.add_argument('--pool', dest='pool', default='mean', choices=['mean', 'max', 'meanmax'],
                         help='v6a: how the 400 trunk positions of a bin are pooled (mean = v4 behaviour)')
 

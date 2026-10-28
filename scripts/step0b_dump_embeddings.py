@@ -70,7 +70,7 @@ def main():
     print(f"[step0b] trunk={ck.trunk} res={ck.resolution} N={ck.n_bins} flank={ck.flank} "
           f"balance={getattr(ck,'balance',False)} scale={getattr(ck,'matrix_scale',1.0)} "
           f"oe={getattr(ck,'oe_target',False)}")
-    assert ck.trunk == "dcnn"
+    assert ck.trunk in ("dcnn", "tower"), ck.trunk
     res, N, pool = int(ck.resolution), int(ck.n_bins), int(m.pool_factor)
     pix = int(RADIUS / res)
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
@@ -86,6 +86,15 @@ def main():
             item = ds[i]
             x = item["sequence"].unsqueeze(0).to(dev)
             with torch.no_grad():
+                if hasattr(m, "embed"):                      # v6b tower model
+                    e_mean = m.embed(x)[0].T; e_max = e_mean
+                    E_mean.append(e_mean.float().cpu().numpy().astype(np.float16))
+                    E_max.append(e_max.float().cpu().numpy().astype(np.float16))
+                    seq = item["sequence"].numpy()[:, ds.flank:ds.flank + N * res]
+                    KM.append(kmer_features(seq, N, res))
+                    INS.append(np.asarray(chr_score(item["matrix"].numpy(), res=res, radius=RADIUS), np.float32))
+                    ST.append(int(item["region_start"]))
+                    continue
                 if x.shape[-1] != m.input_width:
                     off = (x.shape[-1] - m.input_width) // 2
                     x = x[..., off:off + m.input_width]

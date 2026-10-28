@@ -47,7 +47,7 @@ def init_parser():
     p.add_argument('--ckpt-path', required=True)
     p.add_argument('--borzoi', action='store_true')
     p.add_argument('--trunk', dest='trunk', default=None,
-                   choices=['borzoi', 'dcnn', 'corigami'], help='Sequence trunk')
+                   choices=['borzoi', 'dcnn', 'corigami', 'tower'], help='Sequence trunk')
     p.add_argument('--flank', dest='flank', type=int, default=1024,
                    help='bp of context each side for local trunks (ignored by borzoi)')
     p.add_argument('--resolution', dest='resolution', type=int, default=400)
@@ -105,7 +105,7 @@ def main():
         assert (args.resolution, args.n_bins) == (ck_r, ck_n), \
             f"CLI (r={args.resolution}, N={args.n_bins}) != checkpoint (r={ck_r}, N={ck_n})"
         assert args.trunk == ck_trunk, f"CLI trunk={args.trunk} != checkpoint trunk={ck_trunk}"
-        if args.trunk == 'dcnn':
+        if args.trunk in ('dcnn', 'tower'):
             assert args.flank == ck_flank, f"CLI flank={args.flank} != checkpoint flank={ck_flank}"
 
     if args.trunk != 'corigami' and getattr(ck, 'oe_target', False):
@@ -128,7 +128,7 @@ def main():
         expected_2d = torch.tensor(prof[dm], dtype=torch.float32, device=device)
         print(f"[eval] O/E mode: adding expected back (E[0]={prof[0]:.3f}, E[-1]={prof[-1]:.3f})")
 
-    use_pretrained_backbone = args.trunk in ('borzoi', 'dcnn')
+    use_pretrained_backbone = args.trunk in ('borzoi', 'dcnn', 'tower')
     corigami_model = args.trunk == 'corigami'
 
     overall_mse = []
@@ -146,7 +146,7 @@ def main():
             use_pretrained_backbone=use_pretrained_backbone,
             resolution=args.resolution,
             n_bins=args.n_bins,
-            flank=None if args.trunk != 'dcnn' else args.flank,
+            flank=None if args.trunk not in ('dcnn', 'tower') else args.flank,
             balance=args.balance,                   # observed map in the same (balanced) space as training
             matrix_scale=args.matrix_scale,         # NOTE: oe_target is NOT passed: prediction gets expected added back
             bad_bins_file=args.bad_bins_file,
