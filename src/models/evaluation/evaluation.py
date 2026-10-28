@@ -88,6 +88,12 @@ def main():
     else:                                        # borzoi and dcnn both live in TrainModule
         model = TrainModule.load_from_checkpoint(args.ckpt_path, map_location=device).to(device)
     model.eval()
+    if os.environ.get('BN_TRAIN') == '1':            # step 0d: batch-stat BatchNorm in the trunk
+        n_bn = 0
+        for mod in model.modules():
+            if isinstance(mod, torch.nn.modules.batchnorm._BatchNorm):
+                mod.train(); mod.momentum = 0.0; n_bn += 1
+        print(f'[step0d] BN_TRAIN=1: {n_bn} BatchNorm layers use batch statistics (running stats frozen)')
 
     if args.trunk != 'corigami':
         ck = model.hparams["args"]

@@ -128,8 +128,10 @@ class Chiron3D_DCNN(nn.Module):
     TRUNK_BIN = 2      # bp per trunk position (stem conv + MaxPool1d(2))
 
     def __init__(self, mid_hidden=128, resolution=400, n_bins=256,
-                 flank=1024, asap_ckpt=None, dropout=0.1, loop_head=False):
+                 flank=1024, asap_ckpt=None, dropout=0.1, loop_head=False, pool_mode='mean'):
         super().__init__()
+        assert pool_mode in ('mean', 'max', 'meanmax'), pool_mode
+        self.pool_mode = pool_mode
 
         self.resolution = int(resolution)
         self.n_bins = int(n_bins)
@@ -144,13 +146,14 @@ class Chiron3D_DCNN(nn.Module):
         self.trim = self.flank // self.TRUNK_BIN
         print(f"[Chiron3D_DCNN] resolution={self.resolution} n_bins={self.n_bins} "
               f"span={self.target_span} flank={self.flank} input={self.input_width} "
-              f"pool_factor={self.pool_factor}")
+              f"pool_factor={self.pool_factor} pool_mode={self.pool_mode}")
 
         self.trunk = DCNNTrunk(asap_ckpt=asap_ckpt, dropout=dropout)
         self.trunk_from_scratch = asap_ckpt is None
 
-        self.activation = nn.ReLU()
-        self.projector = nn.Conv1d(self.trunk.out_channels, mid_hidden, kernel_size=1, bias=True)
+        self.activation = nn.GELU()
+        proj_in = self.trunk.out_channels * (2 if self.pool_mode == 'meanmax' else 1)
+        self.projector = nn.Conv1d(proj_in, mid_hidden, kernel_size=1, bias=True)
 
         self.attn = blocks.AttnModuleSmall(hidden=mid_hidden, record_attn=False)
         self.loop_head = bool(loop_head)
@@ -168,9 +171,19 @@ class Chiron3D_DCNN(nn.Module):
             x = x[..., off:off + self.input_width]
         x = self.trunk(x)                            # (B, 256, input_width/2) @ 2 bp
         x = x[..., self.trim:x.shape[-1] - self.trim]   # drop flank -> (B, 256, span/2)
-        x = self.projector(x)
-        b, c, l = x.shape
-        x = x.view(b, c, self.n_bins, self.pool_factor).mean(-1)
+        if self.pool_mode == 'mean':                    # v4: project, then average (unchanged)
+            x = self.projector(x)
+            b, c, l = x.shape
+            x = x.view(b, c, self.n_bins, self.pool_factor).mean(-1)
+        else:                                           # v6a: nonlinearity, pool, then project
+            x = self.activation(x)
+            b, c, l = x.shape
+            x = x.view(b, c, self.n_bins, self.pool_factor)
+            if self.pool_mode == 'max':
+                x = x.amax(-1)
+            else:
+                x = torch.cat([x.mean(-1), x.amax(-1)], dim=1)   # (B, 512, N)
+            x = self.projector(x)
         x = move_feature_forward(x)
         x = self.attn(x)
         x = move_feature_forward(x)

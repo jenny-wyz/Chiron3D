@@ -57,6 +57,8 @@ def init_parser():
     parser.add_argument('--flank', dest='flank', type=int, default=1024,
                         help='bp of context each side for local trunks (ignored by borzoi)')
     parser.add_argument('--asap-ckpt', dest='asap_ckpt', default=None)
+    parser.add_argument('--pool', dest='pool', default='mean', choices=['mean', 'max', 'meanmax'],
+                        help='v6a: how the 400 trunk positions of a bin are pooled (mean = v4 behaviour)')
 
     # v3a
     parser.add_argument('--use-aug', dest='use_aug', action='store_true',
